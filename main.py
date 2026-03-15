@@ -1,17 +1,20 @@
-import sys
+import argparse
 from utils.state import parse_level
-from utils.search import dfs
-
+from algorithms.algorithms import ALGORITHMS
 
 def main():
-    level_file = sys.argv[1] if len(sys.argv) > 1 else "levels/level1.txt"
+    parser = argparse.ArgumentParser(description="Sokoban Solver")
+    parser.add_argument("--level", type=str, default="levels/level1.txt")
+    parser.add_argument("--algorithm", type=str, default="dfs", choices=ALGORITHMS.keys())
+    args = parser.parse_args()
 
-    state = parse_level(level_file)
+    state = parse_level(args.level)
     print("Initial state:")
     print(state)
     print()
 
-    result = dfs(state)
+    search_fn = ALGORITHMS[args.algorithm]
+    result = search_fn(state)
     print(result)
 
 
