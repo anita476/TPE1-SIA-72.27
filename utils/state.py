@@ -1,89 +1,136 @@
 from enum import StrEnum
-import csv
+
 
 class AsciiSokoban(StrEnum):
-    EMPTY_CHAR = " "
-    GOAL_CHAR = "."
-    WALL_CHAR = "#"
-    BOX_CHAR = "$"
-    PLAYER_CHAR = "@"
-    BOX_ON_GOAL_CHAR = "*"
-    PLAYER_ON_GOAL_CHAR = "+"
-    
-class Position:
-    def __init__(self, x: int, y: int):
-        self.x = x
-        self.y = y
+    EMPTY = " "
+    GOAL = "."
+    WALL = "#"
+    BOX = "$"
+    PLAYER = "@"
+    BOX_ON_GOAL = "*"
+    PLAYER_ON_GOAL = "+"
+
 
 class Direction:
-    TOP = (-1,0)
-    BOTTOM = (1,0)
-    LEFT = (0,-1)
-    RIGHT = (0,1)
+    UP = (-1, 0)
+    DOWN = (1, 0)
+    LEFT = (0, -1)
+    RIGHT = (0, 1)
 
-class Player:
-    def __init__(self, position: Position):
-        self.position = position
 
-class Goal:
-    def __init__(self, position: Position):
-        self.position = position
+class Position:
+    def __init__(self, row: int, col: int):
+        self.row = row
+        self.col = col
 
-class Goals:
-    def __init__(self, goals: list[Goal]):
-        self.goals = goals
+    def __add__(self, direction: tuple) -> "Position":
+        return Position(self.row + direction[0], self.col + direction[1])
 
-class Box:
-    def __init__(self, position: Position):
-        self.position = position
+    def __eq__(self, other):
+        return isinstance(other, Position) and self.row == other.row and self.col == other.col
 
-class Boxes:
-    def __init__(self, boxes: list[Box]):
-        self.boxes = boxes
+    def __hash__(self):
+        return hash((self.row, self.col))
+
+    def __repr__(self):
+        return f"({self.row}, {self.col})"
+
 
 class SokobanState:
-    def __init__(self, player: Player, boxes: Boxes, goals: Goals, walls: list[Position]):
+    def __init__(self, player: Position, boxes: frozenset, goals: frozenset, walls: frozenset, rows: int, cols: int):
         self.player = player
         self.boxes = boxes
         self.goals = goals
         self.walls = walls
+        self.rows = rows
+        self.cols = cols
+
+    def is_solved(self) -> bool:
+        return self.boxes == self.goals
+
+    def __eq__(self, other):
+        return isinstance(other, SokobanState) and self.player == other.player and self.boxes == other.boxes
+
+    def __hash__(self):
+        return hash((self.player, self.boxes))
+
+    def __str__(self):
+        result = []
+        for row in range(self.rows):
+            line = []
+            for col in range(self.cols):
+                pos = Position(row, col)
+                if pos in self.walls:
+                    line.append(AsciiSokoban.WALL)
+                elif pos == self.player and pos in self.goals:
+                    line.append(AsciiSokoban.PLAYER_ON_GOAL)
+                elif pos == self.player:
+                    line.append(AsciiSokoban.PLAYER)
+                elif pos in self.boxes and pos in self.goals:
+                    line.append(AsciiSokoban.BOX_ON_GOAL)
+                elif pos in self.boxes:
+                    line.append(AsciiSokoban.BOX)
+                elif pos in self.goals:
+                    line.append(AsciiSokoban.GOAL)
+                else:
+                    line.append(AsciiSokoban.EMPTY)
+            result.append("".join(line))
+        return "\n".join(result)
 
 
-# create state matrix from map
-def create_matrix(file: str): #-> SokobanState:
-    #sokobanState = SokobanState()
-    with open(f"{file}", "r") as f:
-        reader = csv.reader(f)
-    
-        for row in reader:
-            for field in row:
-                for char in field:
-                    print(char)
-    #             if (char == AsciiSokoban.PLAYER_CHAR.value): sokobanState.player = Player(Position(row.index(char), reader.line_num))
-    #             if (char == AsciiSokoban.BOX_CHAR.value): sokobanState.boxes.append(Box(Position(row.index(char), reader.line_num)))
-    #             if (char == AsciiSokoban.GOAL_CHAR.value): sokobanState.goals.append(Goal(Position(row.index(char), reader.line_num)))
-    #             if (char == AsciiSokoban.WALL_CHAR.value): sokobanState.walls.append(Position(row.index(char), reader.line_num))
-    # return sokobanState
-        
+def parse_level(file_path: str) -> SokobanState:
+    with open(file_path, "r") as f:
+        lines = f.read().splitlines()
 
-# Get player position from matrix
-def get_player(matrix: set) -> Player:
-    return
+    player = None
+    boxes = set()
+    goals = set()
+    walls = set()
 
-# Get box positions from matrix
-def get_boxes(matrix: set) -> Boxes:
-    return
+    for row, line in enumerate(lines):
+        for col, char in enumerate(line):
+            pos = Position(row, col)
+            if char == AsciiSokoban.WALL:
+                walls.add(pos)
+            elif char == AsciiSokoban.PLAYER:
+                player = pos
+            elif char == AsciiSokoban.BOX:
+                boxes.add(pos)
+            elif char == AsciiSokoban.GOAL:
+                goals.add(pos)
+            elif char == AsciiSokoban.BOX_ON_GOAL:
+                boxes.add(pos)
+                goals.add(pos)
+            elif char == AsciiSokoban.PLAYER_ON_GOAL:
+                player = pos
+                goals.add(pos)
 
-# Get goal positions from matrix
-def get_goals(matrix: set) -> Goals:
-    return
-    
-# Move player
-def move_player(state: SokobanState, direction: Direction ) -> SokobanState:
-    dx, dy = direction
+    if player is None:
+        raise ValueError(f"No player found in level file: {file_path}")
 
-    new_x = state.player.position.x + dx
-    new_y = state.player.position.y + dy
+    if len(boxes) != len(goals):
+        raise ValueError(f"Number of boxes ({len(boxes)}) does not match number of goals ({len(goals)})")
 
-    new_pos = Position(new_x, new_y)
-    return SokobanState(new_pos, state.boxes, state.goals, state.walls)
+    rows = len(lines)
+    cols = max(len(line) for line in lines) if lines else 0
+
+    return SokobanState(player, frozenset(boxes), frozenset(goals), frozenset(walls), rows, cols)
+
+
+def move(state: SokobanState, direction: tuple) -> SokobanState:
+    new_player_pos = state.player + direction
+
+    # Can't move into a wall
+    if new_player_pos in state.walls:
+        return state
+
+    # Moving into a box: check if box can be pushed
+    if new_player_pos in state.boxes:
+        new_box_pos = new_player_pos + direction
+        if new_box_pos in state.walls or new_box_pos in state.boxes:
+            return state
+        new_boxes = (state.boxes - {new_player_pos}) | {new_box_pos}
+        return SokobanState(new_player_pos, frozenset(new_boxes), state.goals, state.walls, state.rows, state.cols)
+
+    # Normal move into empty space
+    return SokobanState(new_player_pos, state.boxes, state.goals, state.walls, state.rows, state.cols)
