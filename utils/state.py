@@ -17,6 +17,15 @@ class Direction:
     LEFT = (0, -1)
     RIGHT = (0, 1)
 
+ALL_DIRECTIONS = [Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT]
+
+DIRECTION_NAMES = {
+    Direction.UP: "UP",
+    Direction.DOWN: "DOWN",
+    Direction.LEFT: "LEFT",
+    Direction.RIGHT: "RIGHT",
+}
+
 
 class Position:
     def __init__(self, row: int, col: int):
@@ -134,3 +143,12 @@ def move(state: SokobanState, direction: tuple) -> SokobanState:
 
     # Normal move into empty space
     return SokobanState(new_player_pos, state.boxes, state.goals, state.walls, state.rows, state.cols)
+
+
+def get_successors(state: SokobanState) -> list[tuple[tuple, SokobanState]]:
+    successors = []
+    for direction in ALL_DIRECTIONS:
+        new_state = move(state, direction)
+        if new_state != state:
+            successors.append((direction, new_state))
+    return successors
