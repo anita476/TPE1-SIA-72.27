@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import argparse
 from pathlib import Path
 
@@ -10,7 +15,9 @@ SEPARATOR = "-" * 80
 def run_level_all_algorithms(level_path: Path, algorithms: list[str], timeout: int) -> dict:
     results = {}
     for algorithm in algorithms:
-        level_name, result, error_msg = run_level(level_path, algorithm, timeout, verbose=False)
+        level_name, result, error_msg = run_level(
+            level_path, algorithm, timeout, verbose=False
+        )
         results[algorithm] = (result, error_msg)
     return results
 
@@ -33,11 +40,12 @@ def main():
         nargs="+",
         default=list(ALGORITHMS.keys()),
         choices=list(ALGORITHMS.keys()),
-        help="Algorithms to compare",
+        help="Algorithms to compare (space-separated)",
     )
     args = parser.parse_args()
 
-    levels_dir = Path("levels")
+    root = Path(__file__).resolve().parent.parent
+    levels_dir = root / "levels"
     level_files = sorted(
         levels_dir.glob("level*.txt"),
         key=lambda p: int((p.stem.replace("level", "") or "0")),

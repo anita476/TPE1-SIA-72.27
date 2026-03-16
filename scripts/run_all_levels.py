@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import argparse
 from multiprocessing import Process, Queue
 from pathlib import Path
@@ -72,12 +77,13 @@ def format_result(level_name: str, result, error_msg: str | None, timeout: int) 
 
 def main():
     parser = argparse.ArgumentParser(description="Run all Sokoban levels sequentially")
-    parser.add_argument("--algorithm", default="bfs", choices=ALGORITHMS.keys())
-    parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--algorithm", default="bfs", choices=ALGORITHMS.keys(), help="Search algorithm")
+    parser.add_argument("--verbose", action="store_true", help="Show level state and solution path")
     parser.add_argument("--timeout", type=int, default=60, help="Seconds per level")
     args = parser.parse_args()
 
-    levels_dir = Path("levels")
+    root = Path(__file__).resolve().parent.parent
+    levels_dir = root / "levels"
     level_files = sorted(
         levels_dir.glob("level*.txt"),
         key=lambda p: int((p.stem.replace("level", "") or "0")),
