@@ -33,6 +33,7 @@ def dfs(initial_state: SokobanState) -> SearchResult:
                 frontier_nodes=len(frontier),
                 processing_time=elapsed,
                 memory_kb=memory_kb,
+                boxes_displaced=node.box_pushes,
             )
 
         for direction, new_state in get_successors(node.state):

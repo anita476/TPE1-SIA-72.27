@@ -28,7 +28,7 @@ def format_cell(result, error_msg: str | None, timeout: int) -> str:
     if result is None:
         return "ERR"
     if result.success:
-        return f"OK c={result.cost} n={result.expanded_nodes} t={result.processing_time:.2f}s m={result.memory_kb:.0f}KB"
+        return f"OK c={result.cost} b={result.boxes_displaced} n={result.expanded_nodes} t={result.processing_time:.2f}s m={result.memory_kb:.0f}KB"
     return "FAILED"
 
 

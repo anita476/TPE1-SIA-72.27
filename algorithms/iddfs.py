@@ -60,6 +60,7 @@ def iddfs(initial_state: SokobanState) -> SearchResult:
                 frontier_nodes=0,
                 processing_time=elapsed,
                 memory_kb=memory_kb,
+                boxes_displaced=result.box_pushes,
             )
 
         depth += 1
