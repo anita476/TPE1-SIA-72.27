@@ -1,6 +1,7 @@
 import time
+import tracemalloc
 from utils.state import SokobanState, get_successors
-from algorithms.utils import SearchNode, SearchResult
+from algorithms.utils import SearchNode, SearchResult, get_peak_memory_kb
 
 
 def depth_limited_search(
@@ -35,6 +36,7 @@ def depth_limited_search(
 
 def iddfs(initial_state: SokobanState) -> SearchResult:
     start_time = time.time()
+    tracemalloc.start()
     total_expanded = 0
     depth = 0
 
@@ -48,6 +50,8 @@ def iddfs(initial_state: SokobanState) -> SearchResult:
 
         if result is not None:
             elapsed = time.time() - start_time
+            memory_kb = get_peak_memory_kb()
+            tracemalloc.stop()
             return SearchResult(
                 success=True,
                 path=result.get_path(),
@@ -55,6 +59,7 @@ def iddfs(initial_state: SokobanState) -> SearchResult:
                 expanded_nodes=total_expanded,
                 frontier_nodes=0,
                 processing_time=elapsed,
+                memory_kb=memory_kb,
             )
 
         depth += 1

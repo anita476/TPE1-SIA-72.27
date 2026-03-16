@@ -1,5 +1,11 @@
-import time
+import tracemalloc
 from utils.state import SokobanState, DIRECTION_NAMES
+
+
+def get_peak_memory_kb() -> float:
+    """Retorna el pico de memoria usado (KB) desde tracemalloc.start()."""
+    current, peak = tracemalloc.get_traced_memory()
+    return peak / 1024
 
 
 class SearchNode:
@@ -20,13 +26,23 @@ class SearchNode:
 
 
 class SearchResult:
-    def __init__(self, success: bool, path: list, cost: int, expanded_nodes: int, frontier_nodes: int, processing_time: float):
+    def __init__(
+        self,
+        success: bool,
+        path: list,
+        cost: int,
+        expanded_nodes: int,
+        frontier_nodes: int,
+        processing_time: float,
+        memory_kb: float = 0,
+    ):
         self.success = success
         self.path = path
         self.cost = cost
         self.expanded_nodes = expanded_nodes
         self.frontier_nodes = frontier_nodes
         self.processing_time = processing_time
+        self.memory_kb = memory_kb
 
     def __str__(self):
         lines = []
@@ -38,4 +54,5 @@ class SearchResult:
         lines.append(f"Expanded nodes: {self.expanded_nodes}")
         lines.append(f"Frontier nodes: {self.frontier_nodes}")
         lines.append(f"Processing time: {self.processing_time:.4f}s")
+        lines.append(f"Memory: {self.memory_kb:.1f} KB")
         return "\n".join(lines)

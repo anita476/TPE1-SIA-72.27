@@ -65,7 +65,7 @@ def format_result(level_name: str, result, error_msg: str | None, timeout: int) 
         return (
             f"{level_name}: OK "
             f"(cost={result.cost}, expanded={result.expanded_nodes}, "
-            f"time={result.processing_time:.2f}s)"
+            f"time={result.processing_time:.2f}s, memory={result.memory_kb:.0f} KB)"
         )
     return f"{level_name}: FAILED"
 
