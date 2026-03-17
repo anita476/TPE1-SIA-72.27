@@ -14,7 +14,7 @@ def greedy(initial_state: SokobanState) -> SearchResult:
     root = SearchNode(initial_state)
     frontier = [] # using a priority queue to select the less costly option
     counter = 0  # tie breaker
-    heapq.heappush(frontier, (manhattan_heuristic(initial_state), counter, root))
+    heapq.heappush(frontier, (emm_heuristic(initial_state), counter, root))
     explored = set()
     expanded_count = 0
 
@@ -44,9 +44,10 @@ def greedy(initial_state: SokobanState) -> SearchResult:
 
         for direction, new_state in get_successors(node.state):
             if new_state not in explored:
+                # checkeo estados repetidos
                 child = SearchNode(new_state, parent=node, action=direction, cost=node.cost + 1)
                 counter += 1
-                heapq.heappush(frontier, (manhattan_heuristic(new_state), counter, child))
+                heapq.heappush(frontier, (emm_heuristic(new_state), counter, child))
 
     elapsed = time.time() - start_time
     memory_kb = get_peak_memory_kb()
@@ -55,7 +56,7 @@ def greedy(initial_state: SokobanState) -> SearchResult:
         success=False,
         path=[],
         cost=0,
-        expanded_nodes=expanded_count,
+        expanded_nodes=expanded_count,  
         frontier_nodes=0,
         processing_time=elapsed,
         memory_kb=memory_kb,
