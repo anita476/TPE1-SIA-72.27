@@ -3,7 +3,7 @@ import tracemalloc
 import heapq
 from utils.state import SokobanState, get_successors, Position
 from algorithms.utils import SearchNode, SearchResult, get_peak_memory_kb
-from algorithms.heuristics.heuristics import emm_heuristic, manhattan_heuristic
+from algorithms.heuristics.heuristics import emm_heuristic, manhattan_heuristic, make_pdb_heuristic
 
 
 # todo is greedy optimal?
@@ -11,10 +11,13 @@ def greedy(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult
     start_time = time.time()
     tracemalloc.start()
 
+    # OBS!!! cache pdb ONCE per instance to reduce computation costs
+    heuristic = make_pdb_heuristic(initial_state)
+
     root = SearchNode(initial_state)
     frontier = [] # using a priority queue to select the less costly option
-    counter = 0  # tie breaker
-    heapq.heappush(frontier, (emm_heuristic(initial_state), counter, root))
+    counter = 0  # tie breaker # todo is this the FO in the paper ?
+    heapq.heappush(frontier, (heuristic(initial_state), counter, root))
     explored = set()
     expanded_count = 0
 
@@ -47,7 +50,7 @@ def greedy(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult
                 # checkeo estados repetidos
                 child = SearchNode(new_state, parent=node, action=direction, cost=node.cost + 1)
                 counter += 1
-                heapq.heappush(frontier, (emm_heuristic(new_state), counter, child))
+                heapq.heappush(frontier, (heuristic(new_state), counter, child))
 
     elapsed = time.time() - start_time
     memory_kb = get_peak_memory_kb()
@@ -61,3 +64,4 @@ def greedy(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult
         processing_time=elapsed,
         memory_kb=memory_kb,
     )
+
