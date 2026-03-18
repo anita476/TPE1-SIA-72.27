@@ -6,17 +6,18 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import argparse
 from pathlib import Path
 
-from algorithms.algorithms import ALGORITHMS
+from algorithms.algorithms import ALGORITHMS, HEURISTICS, HEURISTIC_ALGORITHMS
 from run_all_levels import run_level
 
 SEPARATOR = "-" * 80
 
 
-def run_level_all_algorithms(level_path: Path, algorithms: list[str], timeout: int) -> dict:
+def run_level_all_algorithms(level_path: Path, algorithms: list[str], timeout: int, heuristic_name: str) -> dict:
     results = {}
     for algorithm in algorithms:
-        level_name, result, error_msg = run_level(
-            level_path, algorithm, timeout, verbose=False
+        _, result, error_msg = run_level(
+            level_path, algorithm, timeout, verbose=False,
+            heuristic_name=heuristic_name,
         )
         results[algorithm] = (result, error_msg)
     return results
@@ -24,7 +25,7 @@ def run_level_all_algorithms(level_path: Path, algorithms: list[str], timeout: i
 
 def format_cell(result, error_msg: str | None, timeout: int) -> str:
     if error_msg == "Timeout":
-        return f"TIMEOUT"
+        return "TIMEOUT"
     if result is None:
         return "ERR"
     if result.success:
@@ -42,6 +43,13 @@ def main():
         choices=list(ALGORITHMS.keys()),
         help="Algorithms to compare (space-separated)",
     )
+    parser.add_argument(
+        "--heuristic",
+        type=str,
+        default="emm",
+        choices=HEURISTICS.keys(),
+        help="Heuristic function (only used by greedy and astar)",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
@@ -56,22 +64,24 @@ def main():
         return
 
     algorithms = args.algorithms
-    all_results = {}
-
-    print(f"Comparing {len(algorithms)} algorithms on {len(level_files)} levels (timeout: {args.timeout}s)\n")
+    heuristic_algorithms_in_run = [a for a in algorithms if a in HEURISTIC_ALGORITHMS]
+    heuristic_note = (
+        f" (heuristic={args.heuristic} for: {', '.join(heuristic_algorithms_in_run)})"
+        if heuristic_algorithms_in_run else ""
+    )
+    print(f"Comparing {len(algorithms)} algorithms on {len(level_files)} levels (timeout: {args.timeout}s){heuristic_note}\n")
     print(SEPARATOR)
 
+    all_results = {}
     for level_path in level_files:
         level_name = level_path.stem
         all_results[level_name] = run_level_all_algorithms(
-            level_path, algorithms, args.timeout
+            level_path, algorithms, args.timeout, args.heuristic
         )
-
         print(f"\n{level_name}")
         for alg in algorithms:
             result, error_msg = all_results[level_name][alg]
-            cell = format_cell(result, error_msg, args.timeout)
-            print(f"  {alg:8}: {cell}")
+            print(f"  {alg:8}: {format_cell(result, error_msg, args.timeout)}")
 
     print(SEPARATOR)
     print("\nSummary (solved / total):")

@@ -8,21 +8,25 @@ from multiprocessing import Process, Queue
 from pathlib import Path
 
 from utils.state import parse_level, DIRECTION_NAMES
-from algorithms.algorithms import ALGORITHMS
+from algorithms.algorithms import ALGORITHMS, HEURISTICS, HEURISTIC_ALGORITHMS
 
 SEPARATOR = "-" * 60
 
 
-def run_search(level_path: str, algorithm: str, result_queue: Queue) -> None:
+def run_search(level_path: str, algorithm: str, heuristic_name: str, result_queue: Queue) -> None:
     try:
         state = parse_level(level_path)
-        result = ALGORITHMS[algorithm](state)
+        search_fn = ALGORITHMS[algorithm]
+        if algorithm in HEURISTIC_ALGORITHMS:
+            result = search_fn(state, heuristic=HEURISTICS[heuristic_name])
+        else:
+            result = search_fn(state)
         result_queue.put(("ok", result))
     except Exception as e:
         result_queue.put(("error", str(e)))
 
 
-def run_level(level_path: Path, algorithm: str, timeout: int, verbose: bool) -> tuple:
+def run_level(level_path: Path, algorithm: str, timeout: int, verbose: bool, heuristic_name: str = "emm") -> tuple:
     level_name = level_path.stem
     level_str = str(level_path.resolve())
 
@@ -35,7 +39,7 @@ def run_level(level_path: Path, algorithm: str, timeout: int, verbose: bool) -> 
         print(f"\n{level_name}\n{state}\n")
 
     result_queue = Queue()
-    proc = Process(target=run_search, args=(level_str, algorithm, result_queue))
+    proc = Process(target=run_search, args=(level_str, algorithm, heuristic_name, result_queue))
     proc.start()
     proc.join(timeout=timeout)
 
@@ -53,11 +57,7 @@ def run_level(level_path: Path, algorithm: str, timeout: int, verbose: bool) -> 
         return (level_name, None, data)
 
     result = data
-    if result.success:
-        error_msg = None
-    else:
-        error_msg = "No solution found"
-
+    error_msg = None if result.success else "No solution found"
     return (level_name, result, error_msg)
 
 
@@ -80,6 +80,13 @@ def main():
     parser.add_argument("--algorithm", default="bfs", choices=ALGORITHMS.keys(), help="Search algorithm")
     parser.add_argument("--verbose", action="store_true", help="Show level state and solution path")
     parser.add_argument("--timeout", type=int, default=60, help="Seconds per level")
+    parser.add_argument(
+        "--heuristic",
+        type=str,
+        default="emm",
+        choices=HEURISTICS.keys(),
+        help="Heuristic function (only used by greedy and astar)",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
@@ -93,18 +100,18 @@ def main():
         print(f"No level files found in {levels_dir}")
         return
 
-    print(f"Running {len(level_files)} levels with {args.algorithm} (timeout: {args.timeout}s)\n")
+    heuristic_note = f" ({args.heuristic})" if args.algorithm in HEURISTIC_ALGORITHMS else ""
+    print(f"Running {len(level_files)} levels with {args.algorithm}{heuristic_note} (timeout: {args.timeout}s)\n")
     print(SEPARATOR)
 
     results = []
     for level_path in level_files:
         level_name, result, error_msg = run_level(
-            level_path, args.algorithm, args.timeout, args.verbose
+            level_path, args.algorithm, args.timeout, args.verbose,
+            heuristic_name=args.heuristic,
         )
         results.append((level_name, result, error_msg))
-
-        msg = format_result(level_name, result, error_msg, args.timeout)
-        print(msg)
+        print(format_result(level_name, result, error_msg, args.timeout))
 
         if args.verbose and result and result.success:
             path_str = " -> ".join(DIRECTION_NAMES[d] for d in result.path)

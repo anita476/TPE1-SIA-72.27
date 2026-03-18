@@ -135,10 +135,9 @@ def _linear_conflicts(boxes: list[Position], goals: list[Position], assignment: 
     return conflicts
 
 
-# 
-# 
 # "standard" heuristic for sokoban
-# it is admissible
+# Reference: Pereira et al., "Improved Heuristic and Tie-Breaking for Optimally Solving Sokoban"
+#            IJCAI 2016 — https://www.ijcai.org/Proceedings/16/Papers/100.pdf
 def emm_heuristic(state: SokobanState) -> int:
     """Enhanced Minimum Matching heuristic with simple linear conflict cost.
 
@@ -154,14 +153,19 @@ def emm_heuristic(state: SokobanState) -> int:
     boxes = list(state.boxes)
     goals = list(state.goals)
 
-    # Build cost matrix for matchings
-    cost_matrix = []
-    for box in boxes:
-        player_to_box = manhattan_distance(state.player, box)
-        cost_matrix.append([player_to_box + manhattan_distance(box, goal) for goal in goals])
+    if not boxes:
+        return 0
+
+    # Cost matrix: only box-to-goal distances
+    cost_matrix = [
+        [manhattan_distance(box, goal) for goal in goals]
+        for box in boxes
+    ]
 
     matching_cost, assignment = _hungarian_min_cost_assignment(cost_matrix)
     linear_conflicts = _linear_conflicts(boxes, goals, assignment)
-    return matching_cost + 2 * linear_conflicts
+    player_to_nearest_box = min(manhattan_distance(state.player, box) for box in boxes)
+
+    return matching_cost + 2 * linear_conflicts + player_to_nearest_box
 
     
