@@ -3,10 +3,10 @@ import tracemalloc
 import heapq
 from utils.state import SokobanState, get_successors
 from algorithms.utils import SearchNode, SearchResult, get_peak_memory_kb
-from algorithms.heuristics.heuristics import emm_heuristic
+from algorithms.heuristics.heuristics import emm_heuristic, make_pdb_heuristic
 
 
-def astar(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult:
+def astar(initial_state: SokobanState, heuristic=make_pdb_heuristic) -> SearchResult:
     """A* search: expands nodes in order of f(n) = g(n) + h(n).
 
     Assumes the heuristic is consistent (monotone): h(n) <= cost(n->n') + h(n') hence will find an optimal solution.
@@ -14,11 +14,20 @@ def astar(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult:
     start_time = time.time()
     tracemalloc.start()
 
+    # Detect if `heuristic` is a factory by calling it once and checking if it returns a callable.
+    # todo change xs
+    initial_h = heuristic(initial_state)
+    if callable(initial_h):
+        heuristic_fn = initial_h
+        initial_h = heuristic_fn(initial_state)
+    else:
+        heuristic_fn = heuristic
+
     root = SearchNode(initial_state)
     explored = set()
     counter = 0
     frontier: list = []
-    heapq.heappush(frontier, (heuristic(initial_state), counter, root))
+    heapq.heappush(frontier, (initial_h, counter, root))
 
     expanded_count = 0
 
@@ -49,7 +58,7 @@ def astar(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult:
             if new_state not in explored:
                 child = SearchNode(new_state, parent=node, action=direction, cost=node.cost + 1)
                 counter += 1
-                heapq.heappush(frontier, (node.cost + 1 + heuristic(new_state), counter, child))
+                heapq.heappush(frontier, (node.cost + 1 + heuristic_fn(new_state), counter, child))
 
     elapsed = time.time() - start_time
     memory_kb = get_peak_memory_kb()

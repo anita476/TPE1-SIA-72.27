@@ -3,7 +3,7 @@ from algorithms.bfs import bfs
 from algorithms.iddfs import iddfs
 from algorithms.greedy import greedy
 from algorithms.astar import astar
-from algorithms.heuristics.heuristics import manhattan_heuristic, emm_heuristic
+from algorithms.heuristics.heuristics import manhattan_heuristic, emm_heuristic, make_pdb_heuristic
 
 ALGORITHMS = {
     "dfs": dfs,
