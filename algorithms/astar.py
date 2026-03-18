@@ -3,10 +3,10 @@ import tracemalloc
 import heapq
 from utils.state import SokobanState, get_successors
 from algorithms.utils import SearchNode, SearchResult, get_peak_memory_kb
-from algorithms.heuristics.heuristics import emm_heuristic, make_pdb_heuristic
+from algorithms.heuristics.heuristics import emm_heuristic,manhattan_heuristic
 
 
-def astar(initial_state: SokobanState, heuristic=make_pdb_heuristic) -> SearchResult:
+def astar(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult:
     """A* search: expands nodes in order of f(n) = g(n) + h(n).
 
     Assumes the heuristic is consistent (monotone): h(n) <= cost(n->n') + h(n') hence will find an optimal solution.

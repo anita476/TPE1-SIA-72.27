@@ -3,7 +3,7 @@ import tracemalloc
 import heapq
 from utils.state import SokobanState, get_successors, Position
 from algorithms.utils import SearchNode, SearchResult, get_peak_memory_kb
-from algorithms.heuristics.heuristics import emm_heuristic, manhattan_heuristic, make_pdb_heuristic
+from algorithms.heuristics.heuristics import emm_heuristic, manhattan_heuristic
 
 
 # todo is greedy optimal?
