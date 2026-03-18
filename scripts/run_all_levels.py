@@ -79,7 +79,7 @@ def main():
     parser = argparse.ArgumentParser(description="Run all Sokoban levels sequentially")
     parser.add_argument("--algorithm", default="bfs", choices=ALGORITHMS.keys(), help="Search algorithm")
     parser.add_argument("--verbose", action="store_true", help="Show level state and solution path")
-    parser.add_argument("--timeout", type=int, default=60, help="Seconds per level")
+    parser.add_argument("--timeout", type=int, default=120, help="Seconds per level")
     parser.add_argument(
         "--heuristic",
         type=str,
@@ -90,7 +90,7 @@ def main():
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent
-    levels_dir = root / "levels"
+    levels_dir = root / "microban_levels"
     level_files = sorted(
         levels_dir.glob("level*.txt"),
         key=lambda p: int((p.stem.replace("level", "") or "0")),

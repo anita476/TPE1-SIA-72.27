@@ -40,6 +40,7 @@ class SearchResult:
         processing_time: float,
         memory_kb: float = 0,
         boxes_displaced: int = 0,
+        heuristic_time: float = 0.0,  # total time spent evaluating the heuristic (seconds)
     ):
         self.success = success
         self.path = path
@@ -49,6 +50,7 @@ class SearchResult:
         self.processing_time = processing_time
         self.memory_kb = memory_kb
         self.boxes_displaced = boxes_displaced
+        self.heuristic_time = heuristic_time
 
     def __str__(self):
         lines = []
@@ -61,5 +63,6 @@ class SearchResult:
         lines.append(f"Expanded nodes: {self.expanded_nodes}")
         lines.append(f"Frontier nodes: {self.frontier_nodes}")
         lines.append(f"Processing time: {self.processing_time:.4f}s")
+        lines.append(f"Heuristic time: {self.heuristic_time:.4f}s")
         lines.append(f"Memory: {self.memory_kb:.1f} KB")
         return "\n".join(lines)
