@@ -1,14 +1,10 @@
-from utils.state import Position, SokobanState, ALL_DIRECTIONS
+from utils.state import Position, SokobanState, ALL_DIRECTIONS, Direction
 from enum import StrEnum
 from collections import deque
 
-class Heuristic(StrEnum):
-    MANHATTAN = "MANHATTAN"
-    EMM = "EMM"
+# CACHE OF DEADLOCK POS
+_deadlock_positions_cache = None  
 
-# ---------------------------------------------------------------------------
-# SHARED UTILITIES
-# ---------------------------------------------------------------------------
 
 def manhattan_distance(pos1: Position, pos2: Position) -> int:
     return abs(pos1.row - pos2.row) + abs(pos1.col - pos2.col)
@@ -139,3 +135,167 @@ def emm_heuristic(state: SokobanState) -> int:
 
     return matching_cost + 2 * conflicts + player_to_nearest
 
+
+
+
+
+
+# DEADLOCK RELATED FUNCTIONS
+
+
+def _compute_all_deadlock_positions(state: SokobanState) -> frozenset:
+    """
+    pre-compute all positions that would cause a deadlock in the current level
+    """
+    deadlock_set = set()
+    
+    for row in range(state.rows):
+        for col in range(state.cols):
+            pos = Position(row, col)
+            
+            # Skip walls and goals
+            if pos in state.walls or pos in state.goals:
+                continue
+            
+            if _is_corner_deadlock(pos, state.walls, state.goals, state.rows, state.cols):
+                deadlock_set.add(pos)
+                continue
+
+    
+    return frozenset(deadlock_set)
+
+
+def _is_position_wall_or_out_of_bounds(pos: Position, walls: frozenset, rows: int, cols: int) -> bool:
+    return pos in walls or pos.row < 0 or pos.row >= rows or pos.col < 0 or pos.col >= cols
+
+def _is_corner_deadlock(box_pos: Position, walls: frozenset, goals: frozenset, rows: int, cols: int) -> bool:
+    """
+    Detect corner deadlock: box is in a corner and NOT on a goal.
+    
+    Examples of corners:
+    Combinations:
+    * top -left
+    * top - right
+    * bottom -left 
+    * bottom right
+    """
+    if box_pos in goals:
+        return False  # box on a goal is safe
+    
+    up = box_pos + Direction.UP
+    down = box_pos + Direction.DOWN
+    left = box_pos + Direction.LEFT
+    right = box_pos + Direction.RIGHT
+    
+    up_wall = _is_position_wall_or_out_of_bounds(up, walls, rows, cols)
+    down_wall = _is_position_wall_or_out_of_bounds(down, walls, rows, cols)
+    left_wall = _is_position_wall_or_out_of_bounds(left, walls, rows, cols)
+    right_wall = _is_position_wall_or_out_of_bounds(right, walls, rows, cols)
+    
+    if up_wall and left_wall:
+        return True  
+    if up_wall and right_wall:
+        return True 
+    if down_wall and left_wall:
+        return True 
+    if down_wall and right_wall:
+        return True  
+    
+    return False
+
+
+def _is_edge_deadlock(box_pos: Position, deadlock_positions: frozenset) -> bool:
+    return box_pos in deadlock_positions
+
+
+def _is_unreachable_deadlock(box_pos: Position, walls: frozenset, goals: frozenset, 
+                           other_boxes: frozenset, rows: int, cols: int) -> bool:
+    """
+    Detect unreachable deadlock: box is between walls with no accessible goal.
+    
+    USE BFS to check if the box can reach any goal given wall constraints
+    If all neighbors are walls or another box, and no goal is reachable, it's a deadlock
+    """
+    if box_pos in goals:
+        return False
+    
+    # if all 4 directions have walls or boxes, it's definitely unreachable
+    all_neighbors_blocked = True
+    for direction in ALL_DIRECTIONS:
+        neighbor = box_pos + direction
+        is_blocked = (_is_position_wall_or_out_of_bounds(neighbor, walls, rows, cols) or
+                     neighbor in other_boxes)
+        if not is_blocked:
+            all_neighbors_blocked = False
+            break
+    
+    if all_neighbors_blocked:
+        return True
+    
+    # BFS to check if any goal is reachable from the box position
+    # (ignoring other boxes, considering only walls as obstacles)
+    visited = set()
+    queue = deque([box_pos])
+    visited.add(box_pos)
+    
+    while queue:
+        current = queue.popleft()
+        
+        if current in goals:
+            return False  # Goal is reachable!
+        
+        # Explore neighbors (walls are obstacles)
+        for direction in ALL_DIRECTIONS:
+            neighbor = current + direction
+            
+            if neighbor in visited:
+                continue
+            if _is_position_wall_or_out_of_bounds(neighbor, walls, rows, cols):
+                continue
+            
+            visited.add(neighbor)
+            queue.append(neighbor)
+    
+    # if i can reach no goal -> unreachable
+    return True
+
+
+def _box_in_deadlock(box_pos: Position, state: SokobanState, deadlock_positions: frozenset) -> bool:
+    """
+    Check cases of deadlock for this box.
+    Uses pre-computed deadlock positions for efficiency (includes corners and edge deadlocks).
+    """
+    other_boxes = frozenset(b for b in state.boxes if b != box_pos)
+    
+    # edge deadlock check with cache
+    if _is_edge_deadlock(box_pos, deadlock_positions):
+        return True
+    
+    # if im not in a dead spot, can i reach at least one goal?
+    if _is_unreachable_deadlock(box_pos, state.walls, state.goals, other_boxes, state.rows, state.cols):
+        return True
+    
+    return False
+
+
+def deadlock_heuristic(state: SokobanState) -> int:
+    """
+    Deadlock Detection Heuristic with caching.
+    Pre-computes edge deadlock positions once per level, then reuses them.
+    Includes corner and edge deadlocks in cached positions
+    """
+    global _deadlock_positions_cache
+        
+    # Initialize or update cache if needed (new level detected)
+    if _deadlock_positions_cache is None:
+        _deadlock_positions_cache = _compute_all_deadlock_positions(state)
+    
+    for box in state.boxes:
+        if _box_in_deadlock(box, state, _deadlock_positions_cache):
+            return float('inf')  # unsolvable
+    
+    return 0  # state is potentially solvable 
+
+
+def combination_heuristic(state: SokobanState) -> int:
+    return max(deadlock_heuristic(state), emm_heuristic(state))

@@ -14,8 +14,6 @@ def astar(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult:
     start_time = time.time()
     tracemalloc.start()
 
-    # Detect if `heuristic` is a factory by calling it once and checking if it returns a callable.
-    # todo change xs
     initial_h = heuristic(initial_state)
     if callable(initial_h):
         heuristic_fn = initial_h
