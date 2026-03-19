@@ -1,6 +1,7 @@
 from algorithms.heuristics.heuristic_commons import hungarian_min_cost_assignment, manhattan_distance
 from utils.state import Position, SokobanState
 
+
 def _linear_conflicts(boxes: list[Position], goals: list[Position], assignment: list[int]) -> int:
     """Count linear conflicts between boxes whose assigned goals are in the same
     row/column but in reversed order
@@ -31,8 +32,6 @@ def _linear_conflicts(boxes: list[Position], goals: list[Position], assignment: 
     return conflicts
 
 
-
-
 def emm_heuristic(state: SokobanState) -> int:
     """Enhanced Minimum Matching with linear conflicts.
 
@@ -60,6 +59,3 @@ def emm_heuristic(state: SokobanState) -> int:
     player_to_nearest       = min(manhattan_distance(state.player, box) for box in boxes)
 
     return matching_cost + 2 * conflicts + player_to_nearest
-
-
-

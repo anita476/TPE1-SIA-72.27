@@ -8,6 +8,7 @@ from algorithms.heuristics.deadlock import deadlock_heuristic
 from algorithms.heuristics.combination import combination_heuristic
 from algorithms.heuristics.emm import emm_heuristic
 
+
 def astar(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult:
     """A* search: expands nodes in order of f(n) = g(n) + h(n).
 

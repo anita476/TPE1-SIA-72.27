@@ -8,6 +8,7 @@ from algorithms.heuristics.emm import emm_heuristic
 from algorithms.heuristics.deadlock import deadlock_heuristic
 from algorithms.heuristics.combination import combination_heuristic
 
+
 ALGORITHMS = {
     "dfs": dfs,
     "bfs": bfs,

@@ -17,7 +17,9 @@ class Direction:
     LEFT = (0, -1)
     RIGHT = (0, 1)
 
+
 ALL_DIRECTIONS = [Direction.UP, Direction.DOWN, Direction.LEFT, Direction.RIGHT]
+
 
 DIRECTION_NAMES = {
     Direction.UP: "UP",

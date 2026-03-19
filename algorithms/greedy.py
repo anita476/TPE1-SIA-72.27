@@ -8,6 +8,7 @@ from algorithms.heuristics.deadlock import deadlock_heuristic
 from algorithms.heuristics.combination import combination_heuristic
 from algorithms.heuristics.emm import emm_heuristic
 
+
 # todo is greedy optimal?
 def greedy(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult:
     start_time = time.time()

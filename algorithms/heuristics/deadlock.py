@@ -3,6 +3,7 @@ from utils.state import AsciiSokoban, Position, SokobanState, ALL_DIRECTIONS, Di
 # CACHE OF DEADLOCK POS
 _deadlock_positions_cache = None  
 
+
 def _is_wall_or_out_of_bounds(pos: Position, state: SokobanState) -> bool:
     """Return True if the position is outside the board or is a wall"""
     if pos.row < 0 or pos.row >= state.rows or pos.col < 0 or pos.col >= state.cols:
@@ -182,7 +183,6 @@ def deadlock_heuristic(state: SokobanState) -> int:
             return float('inf')  # unsolvable
     
     return 0  # state is potentially solvable 
-
 
 
 def print_deadlock_map(state: SokobanState, deadlock_positions: frozenset) -> None:

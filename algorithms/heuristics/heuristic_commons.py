@@ -1,7 +1,6 @@
 from utils.state import Position
 
 
-
 def manhattan_distance(pos1: Position, pos2: Position) -> int:
     return abs(pos1.row - pos2.row) + abs(pos1.col - pos2.col)
 
@@ -64,9 +63,3 @@ def hungarian_min_cost_assignment(cost_matrix: list[list[int]]) -> tuple[int, li
             match[p[j] - 1] = j - 1
 
     return -v[0], match
-
-
-
-
-
-

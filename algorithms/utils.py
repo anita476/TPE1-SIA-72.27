@@ -3,7 +3,7 @@ from utils.state import SokobanState, DIRECTION_NAMES
 
 
 def get_peak_memory_kb() -> float:
-    """Retorna el pico de memoria usado (KB) desde tracemalloc.start()."""
+    """Returns (KB) since tracemalloc.start()."""
     current, peak = tracemalloc.get_traced_memory()
     return peak / 1024
 
