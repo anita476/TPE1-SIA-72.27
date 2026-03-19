@@ -3,7 +3,10 @@ from algorithms.bfs import bfs
 from algorithms.iddfs import iddfs
 from algorithms.greedy import greedy
 from algorithms.astar import astar
-from algorithms.heuristics.heuristics import manhattan_heuristic, emm_heuristic, deadlock_heuristic, combination_heuristic
+from algorithms.heuristics.manhattan import manhattan_heuristic 
+from algorithms.heuristics.emm import emm_heuristic
+from algorithms.heuristics.deadlock import deadlock_heuristic
+from algorithms.heuristics.combination import combination_heuristic
 
 ALGORITHMS = {
     "dfs": dfs,

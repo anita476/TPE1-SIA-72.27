@@ -3,8 +3,10 @@ import tracemalloc
 import heapq
 from utils.state import SokobanState, get_successors
 from algorithms.utils import SearchNode, SearchResult, get_peak_memory_kb
-from algorithms.heuristics.heuristics import emm_heuristic,manhattan_heuristic
-
+from algorithms.heuristics.manhattan import manhattan_heuristic
+from algorithms.heuristics.deadlock import deadlock_heuristic
+from algorithms.heuristics.combination import combination_heuristic
+from algorithms.heuristics.emm import emm_heuristic
 
 def astar(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult:
     """A* search: expands nodes in order of f(n) = g(n) + h(n).
