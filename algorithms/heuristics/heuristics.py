@@ -1,4 +1,4 @@
-from utils.state import Position, SokobanState, ALL_DIRECTIONS, Direction
+from utils.state import AsciiSokoban, Position, SokobanState, ALL_DIRECTIONS, Direction
 from enum import StrEnum
 from collections import deque
 
@@ -143,139 +143,168 @@ def emm_heuristic(state: SokobanState) -> int:
 # DEADLOCK RELATED FUNCTIONS
 
 
+def _is_wall_or_out_of_bounds(pos: Position, state: SokobanState) -> bool:
+    """Return True if the position is outside the board or is a wall"""
+    if pos.row < 0 or pos.row >= state.rows or pos.col < 0 or pos.col >= state.cols:
+        return True
+    return state.matrix[pos.row][pos.col] == AsciiSokoban.WALL
+
+
+def _is_goal_cell(pos: Position, state: SokobanState) -> bool:
+    if pos.row < 0 or pos.row >= state.rows or pos.col < 0 or pos.col >= state.cols:
+        return False
+    cell = state.matrix[pos.row][pos.col]
+    return cell in (AsciiSokoban.GOAL, AsciiSokoban.BOX_ON_GOAL, AsciiSokoban.PLAYER_ON_GOAL)
+
+
 def _compute_all_deadlock_positions(state: SokobanState) -> frozenset:
-    """
-    pre-compute all positions that would cause a deadlock in the current level
+    """Pre-compute all positions that would cause a deadlock in the current level.
+    
+    This includes:
+    1. Corner deadlocks: positions in corners (blocked by 2 perpendicular walls)
+    2. Edge deadlocks: positions along walls extending from corners, but ONLY if
+       no goals are reachable within that edge corridor
     """
     deadlock_set = set()
-    
+
+    # first: find all corner deadlocks
+    corner_deadlocks = set()
     for row in range(state.rows):
         for col in range(state.cols):
             pos = Position(row, col)
-            
+
             # Skip walls and goals
-            if pos in state.walls or pos in state.goals:
-                continue
-            
-            if _is_corner_deadlock(pos, state.walls, state.goals, state.rows, state.cols):
-                deadlock_set.add(pos)
+            if _is_wall_or_out_of_bounds(pos, state) or _is_goal_cell(pos, state):
                 continue
 
-    
+            if _is_corner_deadlock(pos, state):
+                corner_deadlocks.add(pos)
+                deadlock_set.add(pos)
+
+    # second : use these corners to "travel" through indirect deadlock edges
+    for corner in corner_deadlocks:
+        deadlock_set.update(_find_edge_deadlocks_from_corner(corner, state))
+
     return frozenset(deadlock_set)
 
 
-def _is_position_wall_or_out_of_bounds(pos: Position, walls: frozenset, rows: int, cols: int) -> bool:
-    return pos in walls or pos.row < 0 or pos.row >= rows or pos.col < 0 or pos.col >= cols
+def _find_edge_deadlocks_from_corner(corner: Position, state: SokobanState) -> set:
+    """
+    From a corner, we travel along edges in the two directions that lead AWAY
+    from the corner
+    """
+    edge_deadlocks = set()
 
-def _is_corner_deadlock(box_pos: Position, walls: frozenset, goals: frozenset, rows: int, cols: int) -> bool:
+    # Determine which corner type this is and the directions to explore
+    up = corner + Direction.UP
+    down = corner + Direction.DOWN
+    left = corner + Direction.LEFT
+    right = corner + Direction.RIGHT
+
+    up_wall = _is_wall_or_out_of_bounds(up, state)
+    down_wall = _is_wall_or_out_of_bounds(down, state)
+    left_wall = _is_wall_or_out_of_bounds(left, state)
+    right_wall = _is_wall_or_out_of_bounds(right, state)
+
+    if up_wall and left_wall:
+        # TOPLEFT: travel DOWN and RIGHT
+        edge_deadlocks.update(_travel_edge(corner, Direction.DOWN, state))
+        edge_deadlocks.update(_travel_edge(corner, Direction.RIGHT, state))
+    elif up_wall and right_wall:
+        # TOPRIGHT : travel DOWN and LEFT
+        edge_deadlocks.update(_travel_edge(corner, Direction.DOWN, state))
+        edge_deadlocks.update(_travel_edge(corner, Direction.LEFT, state))
+    elif down_wall and left_wall:
+        # BOTTOMLEFT : travel UP and RIGHT
+        edge_deadlocks.update(_travel_edge(corner, Direction.UP, state))
+        edge_deadlocks.update(_travel_edge(corner, Direction.RIGHT, state))
+    elif down_wall and right_wall:
+        # BOTTOM RIGHT: travel UP and LEFT
+        edge_deadlocks.update(_travel_edge(corner, Direction.UP, state))
+        edge_deadlocks.update(_travel_edge(corner, Direction.LEFT, state))
+
+    return edge_deadlocks
+
+
+def _travel_edge(start: Position, primary_direction: tuple, state: SokobanState) -> set:
     """
-    Detect corner deadlock: box is in a corner and NOT on a goal.
+    Travel in primary_direction as long as:
+    * The position is not a wall -> WE HAVE REACHED THE OTHER CORNER
+    * The position is not a goal
+    * The position has AT LEAST ONE wall perpendicular to travel direction (that would trap a box)
     
-    Examples of corners:
-    Combinations:
-    * top -left
-    * top - right
-    * bottom -left 
-    * bottom right
+    If any position lacks a perpendicular wall, clear the collected positions
+    (the edge is broken and remaining positions are not deadlocked).
     """
-    if box_pos in goals:
+    edge_deadlocks = set()
+    current = start + primary_direction
+
+    # Determine perpendicular directions based on travel direction
+    if primary_direction == Direction.DOWN or primary_direction == Direction.UP:
+        # Traveling vertically: perpendicular directions are LEFT/RIGHT
+        perpendicular_directions = [Direction.LEFT, Direction.RIGHT]
+    else:
+        # Traveling horizontally: perpendicular directions are UP/DOWN
+        perpendicular_directions = [Direction.UP, Direction.DOWN]
+
+    while not _is_wall_or_out_of_bounds(current, state):
+        # If we hit a goal on this edge, the entire edge is NOT deadlocked
+        if _is_goal_cell(current, state):
+            return set()  # Empty set means edge is not deadlock
+
+        # Check if this position is "trapped" on both perpendicular sides
+        perp_walls = [_is_wall_or_out_of_bounds(current + perp_dir, state) 
+                      for perp_dir in perpendicular_directions]
+
+        # For an edge deadlock, BOTH perpendicular sides must have walls
+        if not all(perp_walls):
+            # Missing wall on at least one perpendicular side -> edge breaks here
+            edge_deadlocks.clear()
+            break
+
+        # This position is deadlocked (walls on both perpendicular sides)
+        edge_deadlocks.add(current)
+
+        # Move to next position
+        current = current + primary_direction
+
+    return edge_deadlocks
+
+
+def _is_corner_deadlock(box_pos: Position, state: SokobanState) -> bool:
+    """Detect corner deadlock: box is in a corner and NOT on a goal."""
+    if _is_goal_cell(box_pos, state):
         return False  # box on a goal is safe
-    
+
     up = box_pos + Direction.UP
     down = box_pos + Direction.DOWN
     left = box_pos + Direction.LEFT
     right = box_pos + Direction.RIGHT
-    
-    up_wall = _is_position_wall_or_out_of_bounds(up, walls, rows, cols)
-    down_wall = _is_position_wall_or_out_of_bounds(down, walls, rows, cols)
-    left_wall = _is_position_wall_or_out_of_bounds(left, walls, rows, cols)
-    right_wall = _is_position_wall_or_out_of_bounds(right, walls, rows, cols)
-    
+
+    up_wall = _is_wall_or_out_of_bounds(up, state)
+    down_wall = _is_wall_or_out_of_bounds(down, state)
+    left_wall = _is_wall_or_out_of_bounds(left, state)
+    right_wall = _is_wall_or_out_of_bounds(right, state)
+
     if up_wall and left_wall:
-        return True  
-    if up_wall and right_wall:
-        return True 
-    if down_wall and left_wall:
-        return True 
-    if down_wall and right_wall:
-        return True  
-    
-    return False
-
-
-def _is_edge_deadlock(box_pos: Position, deadlock_positions: frozenset) -> bool:
-    return box_pos in deadlock_positions
-
-
-def _is_unreachable_deadlock(box_pos: Position, walls: frozenset, goals: frozenset, 
-                           other_boxes: frozenset, rows: int, cols: int) -> bool:
-    """
-    Detect unreachable deadlock: box is between walls with no accessible goal.
-    
-    USE BFS to check if the box can reach any goal given wall constraints
-    If all neighbors are walls or another box, and no goal is reachable, it's a deadlock
-    """
-    if box_pos in goals:
-        return False
-    
-    # if all 4 directions have walls or boxes, it's definitely unreachable
-    all_neighbors_blocked = True
-    for direction in ALL_DIRECTIONS:
-        neighbor = box_pos + direction
-        is_blocked = (_is_position_wall_or_out_of_bounds(neighbor, walls, rows, cols) or
-                     neighbor in other_boxes)
-        if not is_blocked:
-            all_neighbors_blocked = False
-            break
-    
-    if all_neighbors_blocked:
         return True
-    
-    # BFS to check if any goal is reachable from the box position
-    # (ignoring other boxes, considering only walls as obstacles)
-    visited = set()
-    queue = deque([box_pos])
-    visited.add(box_pos)
-    
-    while queue:
-        current = queue.popleft()
-        
-        if current in goals:
-            return False  # Goal is reachable!
-        
-        # Explore neighbors (walls are obstacles)
-        for direction in ALL_DIRECTIONS:
-            neighbor = current + direction
-            
-            if neighbor in visited:
-                continue
-            if _is_position_wall_or_out_of_bounds(neighbor, walls, rows, cols):
-                continue
-            
-            visited.add(neighbor)
-            queue.append(neighbor)
-    
-    # if i can reach no goal -> unreachable
-    return True
+    if up_wall and right_wall:
+        return True
+    if down_wall and left_wall:
+        return True
+    if down_wall and right_wall:
+        return True
+
+    return False
 
 
 def _box_in_deadlock(box_pos: Position, state: SokobanState, deadlock_positions: frozenset) -> bool:
     """
-    Check cases of deadlock for this box.
-    Uses pre-computed deadlock positions for efficiency (includes corners and edge deadlocks).
+    Check if a box is in a deadlock position.
+    Uses pre-computed frozenset for O(1) lookup time.
     """
-    other_boxes = frozenset(b for b in state.boxes if b != box_pos)
-    
-    # edge deadlock check with cache
-    if _is_edge_deadlock(box_pos, deadlock_positions):
-        return True
-    
-    # if im not in a dead spot, can i reach at least one goal?
-    if _is_unreachable_deadlock(box_pos, state.walls, state.goals, other_boxes, state.rows, state.cols):
-        return True
-    
-    return False
+    # Direct O(1) frozenset lookup (hashed)
+    return box_pos in deadlock_positions
 
 
 def deadlock_heuristic(state: SokobanState) -> int:
@@ -299,3 +328,19 @@ def deadlock_heuristic(state: SokobanState) -> int:
 
 def combination_heuristic(state: SokobanState) -> int:
     return max(deadlock_heuristic(state), emm_heuristic(state))
+
+
+def print_deadlock_map(state: SokobanState, deadlock_positions: frozenset) -> None:
+    result = []
+    for row in range(state.rows):
+        line = []
+        for col in range(state.cols):
+            pos = Position(row, col)
+            if pos in deadlock_positions:
+                line.append('X')
+            else:
+                line.append(state.matrix[row][col])
+        result.append("".join(line))
+    print("\nDeadlock Map:")
+    print("\n".join(result))
+    print(f"\nTotal deadlock positions: {len(deadlock_positions)}")

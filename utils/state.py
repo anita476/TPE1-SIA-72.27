@@ -46,13 +46,47 @@ class Position:
 
 
 class SokobanState:
-    def __init__(self, player: Position, boxes: frozenset, goals: frozenset, walls: frozenset, rows: int, cols: int):
+    def __init__(self, player: Position, boxes: frozenset, goals: frozenset, walls: frozenset, rows: int, cols: int, matrix=None):
         self.player = player
         self.boxes = boxes
         self.goals = goals
         self.walls = walls
         self.rows = rows
         self.cols = cols
+
+        self.matrix = matrix if matrix is not None else self._build_matrix()
+
+    def _build_matrix(self):
+        grid = [[AsciiSokoban.EMPTY for _ in range(self.cols)] for _ in range(self.rows)]
+
+        for wall in self.walls:
+            grid[wall.row][wall.col] = AsciiSokoban.WALL
+
+        for goal in self.goals:
+            if grid[goal.row][goal.col] == AsciiSokoban.WALL:
+                continue
+            grid[goal.row][goal.col] = AsciiSokoban.GOAL
+
+        for box in self.boxes:
+            if grid[box.row][box.col] == AsciiSokoban.GOAL:
+                grid[box.row][box.col] = AsciiSokoban.BOX_ON_GOAL
+            else:
+                grid[box.row][box.col] = AsciiSokoban.BOX
+
+        if self.player is not None:
+            p = self.player
+            if grid[p.row][p.col] == AsciiSokoban.GOAL:
+                grid[p.row][p.col] = AsciiSokoban.PLAYER_ON_GOAL
+            else:
+                grid[p.row][p.col] = AsciiSokoban.PLAYER
+
+        return tuple(tuple(row) for row in grid)
+
+    def cell_type(self, pos: Position):
+        """Return the AsciiSokoban value for a position, or None if out of bounds."""
+        if pos.row < 0 or pos.row >= self.rows or pos.col < 0 or pos.col >= self.cols:
+            return None
+        return self.matrix[pos.row][pos.col]
 
     def is_solved(self) -> bool:
         return self.boxes == self.goals
@@ -64,33 +98,18 @@ class SokobanState:
         return hash((self.player, self.boxes))
 
     def __str__(self):
-        result = []
-        for row in range(self.rows):
-            line = []
-            for col in range(self.cols):
-                pos = Position(row, col)
-                if pos in self.walls:
-                    line.append(AsciiSokoban.WALL)
-                elif pos == self.player and pos in self.goals:
-                    line.append(AsciiSokoban.PLAYER_ON_GOAL)
-                elif pos == self.player:
-                    line.append(AsciiSokoban.PLAYER)
-                elif pos in self.boxes and pos in self.goals:
-                    line.append(AsciiSokoban.BOX_ON_GOAL)
-                elif pos in self.boxes:
-                    line.append(AsciiSokoban.BOX)
-                elif pos in self.goals:
-                    line.append(AsciiSokoban.GOAL)
-                else:
-                    line.append(AsciiSokoban.EMPTY)
-            result.append("".join(line))
-        return "\n".join(result)
+        return "\n".join("".join(row) for row in self.matrix)
 
 
 def parse_level(file_path: str) -> SokobanState:
     with open(file_path, "r") as f:
         lines = f.read().splitlines()
 
+    rows = len(lines)
+    cols = max(len(line) for line in lines) if lines else 0
+
+    # Build matrix and extract positions during parsing
+    matrix = [[AsciiSokoban.EMPTY for _ in range(cols)] for _ in range(rows)]
     player = None
     boxes = set()
     goals = set()
@@ -98,7 +117,11 @@ def parse_level(file_path: str) -> SokobanState:
 
     for row, line in enumerate(lines):
         for col, char in enumerate(line):
+            #  all cells are initialized (pad with EMPTY if needed)
+            if col < len(line):
+                matrix[row][col] = char
             pos = Position(row, col)
+
             if char == AsciiSokoban.WALL:
                 walls.add(pos)
             elif char == AsciiSokoban.PLAYER:
@@ -120,10 +143,9 @@ def parse_level(file_path: str) -> SokobanState:
     if len(boxes) != len(goals):
         raise ValueError(f"Number of boxes ({len(boxes)}) does not match number of goals ({len(goals)})")
 
-    rows = len(lines)
-    cols = max(len(line) for line in lines) if lines else 0
-
-    return SokobanState(player, frozenset(boxes), frozenset(goals), frozenset(walls), rows, cols)
+    # Convert matrix to immutable form and pass it directly
+    matrix_tuple = tuple(tuple(row) for row in matrix)
+    return SokobanState(player, frozenset(boxes), frozenset(goals), frozenset(walls), rows, cols, matrix_tuple)
 
 
 def move(state: SokobanState, direction: tuple) -> SokobanState:
