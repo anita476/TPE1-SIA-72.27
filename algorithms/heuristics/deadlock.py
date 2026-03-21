@@ -166,7 +166,7 @@ def _box_in_deadlock(box_pos: Position, state: SokobanState, deadlock_positions:
     return box_pos in deadlock_positions
 
 
-def deadlock_heuristic(state: SokobanState) -> int:
+def deadlock_heuristic(state: SokobanState) -> float:
     """
     Deadlock Detection Heuristic with caching.
     Pre-computes edge deadlock positions once per level, then reuses them.
