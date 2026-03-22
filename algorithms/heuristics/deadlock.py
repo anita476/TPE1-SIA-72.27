@@ -68,26 +68,23 @@ def _find_edge_deadlocks_from_corner(corner: Position, state: SokobanState) -> s
     right_wall = _is_wall_or_out_of_bounds(right, state)
 
     if up_wall and left_wall:
-        # TOPLEFT: travel DOWN and RIGHT
-        edge_deadlocks.update(_travel_edge(corner, Direction.DOWN, state))
-        edge_deadlocks.update(_travel_edge(corner, Direction.RIGHT, state))
-    elif up_wall and right_wall:
-        # TOPRIGHT : travel DOWN and LEFT
-        edge_deadlocks.update(_travel_edge(corner, Direction.DOWN, state))
-        edge_deadlocks.update(_travel_edge(corner, Direction.LEFT, state))
-    elif down_wall and left_wall:
-        # BOTTOMLEFT : travel UP and RIGHT
-        edge_deadlocks.update(_travel_edge(corner, Direction.UP, state))
-        edge_deadlocks.update(_travel_edge(corner, Direction.RIGHT, state))
-    elif down_wall and right_wall:
-        # BOTTOM RIGHT: travel UP and LEFT
-        edge_deadlocks.update(_travel_edge(corner, Direction.UP, state))
-        edge_deadlocks.update(_travel_edge(corner, Direction.LEFT, state))
+        edge_deadlocks.update(_travel_edge(corner, Direction.DOWN, Direction.LEFT, state))
+        edge_deadlocks.update(_travel_edge(corner, Direction.RIGHT, Direction.UP, state))
+    if up_wall and right_wall:
+        edge_deadlocks.update(_travel_edge(corner, Direction.DOWN, Direction.RIGHT, state))
+        edge_deadlocks.update(_travel_edge(corner, Direction.LEFT, Direction.UP, state))
+    if down_wall and left_wall:
+        edge_deadlocks.update(_travel_edge(corner, Direction.UP, Direction.LEFT, state))
+        edge_deadlocks.update(_travel_edge(corner, Direction.RIGHT, Direction.DOWN, state))
+    if down_wall and right_wall:
+        edge_deadlocks.update(_travel_edge(corner, Direction.UP, Direction.RIGHT, state))
+        edge_deadlocks.update(_travel_edge(corner, Direction.LEFT, Direction.DOWN, state))
 
     return edge_deadlocks
 
 
-def _travel_edge(start: Position, primary_direction: tuple, state: SokobanState) -> set:
+def _travel_edge(start: Position, primary_direction: tuple,
+                 wall_direction: tuple, state: SokobanState) -> set:
     """
     Travel in primary_direction as long as:
     * The position is not a wall -> WE HAVE REACHED THE OTHER CORNER
@@ -100,25 +97,14 @@ def _travel_edge(start: Position, primary_direction: tuple, state: SokobanState)
     edge_deadlocks = set()
     current = start + primary_direction
 
-    if primary_direction == Direction.DOWN or primary_direction == Direction.UP:
-        # Traveling vertically: perpendicular directions are LEFT/RIGHT
-        perpendicular_directions = [Direction.LEFT, Direction.RIGHT]
-    else:
-        # Traveling horizontally: perpendicular directions are UP/DOWN
-        perpendicular_directions = [Direction.UP, Direction.DOWN]
-
     while not _is_wall_or_out_of_bounds(current, state):
         # If we hit a goal on this edge, the entire edge is NOT deadlocked
         if _is_goal_cell(current, state):
             return set()  # Empty set means edge is not deadlock
 
-        # Check if this position is "trapped" on both perpendicular sides
-        perp_walls = [_is_wall_or_out_of_bounds(current + perp_dir, state) 
-                      for perp_dir in perpendicular_directions]
-
-        # For an edge deadlock, BOTH perpendicular sides must have walls
-        if not all(perp_walls):
-            # Missing wall on at least one perpendicular side -> edge breaks here
+        # The wall that traps the box must continue on the same side
+        if not _is_wall_or_out_of_bounds(current + wall_direction, state):
+            # Wall ended -> box can escape, edge segment is not deadlocked
             edge_deadlocks.clear()
             break
 
