@@ -16,11 +16,17 @@ def astar(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult:
     """
     start_time = time.time()
     tracemalloc.start()
+    heuristic_time_total = 0.0
 
+    h_start = time.perf_counter()
     initial_h = heuristic(initial_state)
+    heuristic_time_total += time.perf_counter() - h_start
+
     if callable(initial_h):
         heuristic_fn = initial_h
+        h_start = time.perf_counter()
         initial_h = heuristic_fn(initial_state)
+        heuristic_time_total += time.perf_counter() - h_start
     else:
         heuristic_fn = heuristic
 
@@ -53,13 +59,17 @@ def astar(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult:
                 processing_time=elapsed,
                 memory_kb=memory_kb,
                 boxes_displaced=node.box_pushes,
+                heuristic_time=heuristic_time_total,
             )
 
         for direction, new_state in get_successors(node.state):
             if new_state not in explored:
                 child = SearchNode(new_state, parent=node, action=direction, cost=node.cost + 1)
                 counter += 1
-                heapq.heappush(frontier, (node.cost + 1 + heuristic_fn(new_state), counter, child))
+                h_start = time.perf_counter()
+                h_value = heuristic_fn(new_state)
+                heuristic_time_total += time.perf_counter() - h_start
+                heapq.heappush(frontier, (node.cost + 1 + h_value, counter, child))
 
     elapsed = time.time() - start_time
     memory_kb = get_peak_memory_kb()
@@ -72,4 +82,5 @@ def astar(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult:
         frontier_nodes=0,
         processing_time=elapsed,
         memory_kb=memory_kb,
+        heuristic_time=heuristic_time_total,
     )

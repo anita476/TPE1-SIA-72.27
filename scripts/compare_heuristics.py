@@ -30,7 +30,8 @@ def format_cell(result, error_msg: str | None) -> str:
     if result.success:
         return (
             f"OK costo={result.cost} pushes={result.boxes_displaced} "
-            f"nodos expandidos={result.expanded_nodes} tiempo={result.processing_time:.2f}s "
+            f"nodos expandidos={result.expanded_nodes} tiempo_total={result.processing_time:.2f}s "
+            f"tiempo_heurísticas={result.heuristic_time:.2f}s "
             f"memoria={result.memory_kb:.0f}KB"
         )
     return "FAILED"
