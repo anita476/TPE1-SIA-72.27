@@ -1,6 +1,15 @@
 from collections import deque
 from utils.state import Position, ALL_DIRECTIONS, SokobanState
 
+_reachable_cache = {}
+_push_dist_cache = {}
+_relaxed_map_cache = {}
+
+def clear_caches():
+    _reachable_cache.clear()
+    _push_dist_cache.clear()
+    _relaxed_map_cache.clear()
+
 # Basic utilities
 def manhattan_distance(pos1: Position, pos2: Position) -> int:
     return abs(pos1.row - pos2.row) + abs(pos1.col - pos2.col)
@@ -11,7 +20,12 @@ def in_bounds(pos: Position, rows: int, cols: int) -> bool:
 # Reachability
 def reachable_cells(player: Position, walls: frozenset, blocked: frozenset,
                     rows: int, cols: int) -> frozenset:
+    key = (player, blocked, walls)
+    if key in _reachable_cache:
+        return _reachable_cache[key]
+
     if not in_bounds(player, rows, cols) or player in walls or player in blocked:
+        _reachable_cache[key] = frozenset()
         return frozenset()
 
     visited = {player}
@@ -23,16 +37,24 @@ def reachable_cells(player: Position, walls: frozenset, blocked: frozenset,
             if in_bounds(nxt, rows, cols) and nxt not in walls and nxt not in blocked and nxt not in visited:
                 visited.add(nxt)
                 queue.append(nxt)
-    return frozenset(visited)
+    result = frozenset(visited)
+    _reachable_cache[key] = result
+    return result
 
 # Single-stone push distances (BFS)
 def exact_single_stone_push_distances(player: Position, box: Position,
                                        walls: frozenset, rows: int,
                                        cols: int) -> dict:
     """Minimum pushes to move one stone to every reachable square (ignoring other stones)."""
+    key = (player, box, walls)
+    if key in _push_dist_cache:
+        return _push_dist_cache[key]
+
     if not in_bounds(player, rows, cols) or not in_bounds(box, rows, cols):
+        _push_dist_cache[key] = {}
         return {}
     if player in walls or box in walls or player == box:
+        _push_dist_cache[key] = {}
         return {}
 
     start = (box, player)
@@ -65,6 +87,7 @@ def exact_single_stone_push_distances(player: Position, box: Position,
             if box_cost.get(push_to, new_cost + 1) > new_cost:
                 box_cost[push_to] = new_cost
 
+    _push_dist_cache[key] = box_cost
     return box_cost
 
 
@@ -173,6 +196,10 @@ def exact_minimum_matching_cost(state: SokobanState) -> float:
 # Relaxed push distances (reverse BFS ignoring player position)
 def _relaxed_push_distance_map(goal: Position, walls: frozenset,
                                rows: int, cols: int) -> dict:
+    key = (goal, walls)
+    if key in _relaxed_map_cache:
+        return _relaxed_map_cache[key]
+
     dist = {goal: 0}
     queue = deque([goal])
     while queue:
@@ -188,6 +215,8 @@ def _relaxed_push_distance_map(goal: Position, walls: frozenset,
             if box_prev not in dist:
                 dist[box_prev] = cost + 1
                 queue.append(box_prev)
+
+    _relaxed_map_cache[key] = dist
     return dist
 
 
