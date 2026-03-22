@@ -55,8 +55,8 @@ def emm_heuristic(state: SokobanState) -> int:
     ]
 
     matching_cost, assignment = hungarian_min_cost_assignment(cost_matrix)
-    conflicts               = _linear_conflicts(boxes, goals, assignment)
+    conflicts = _linear_conflicts(boxes, goals, assignment)
     ## min to the nearest box would tend to underestimate but its for it to keep being admissible
-    player_to_nearest       = min(manhattan_distance(state.player, box) for box in boxes)
+    player_to_nearest = min(manhattan_distance(state.player, box) for box in boxes)
 
     return matching_cost + 2 * conflicts + player_to_nearest

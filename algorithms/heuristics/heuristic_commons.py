@@ -42,7 +42,7 @@ def reachable_cells(player: Position, walls: frozenset, blocked: frozenset,
     return result
 
 # Single-stone push distances (BFS)
-def exact_single_stone_push_distances(player: Position, box: Position,
+def single_stone_push_distances(player: Position, box: Position,
                                        walls: frozenset, rows: int,
                                        cols: int) -> dict:
     """Minimum pushes to move one stone to every reachable square (ignoring other stones)."""
@@ -91,9 +91,9 @@ def exact_single_stone_push_distances(player: Position, box: Position,
     return box_cost
 
 
-def exact_push_distance(player: Position, box: Position, goal: Position,
+def single_stone_push_distance(player: Position, box: Position, goal: Position,
                         walls: frozenset, rows: int, cols: int) -> float:
-    return exact_single_stone_push_distances(player, box, walls, rows, cols).get(
+    return single_stone_push_distances(player, box, walls, rows, cols).get(
         goal, float("inf")
     )
 
@@ -158,7 +158,7 @@ def hungarian_min_cost_assignment(cost_matrix: list[list[int]]) -> tuple[int, li
 
 
 # Shared: build cost matrix -> hungarian -> check inf
-def _matching_cost_from_matrix(cost_matrix, big):
+def _hungarian_cost_or_inf(cost_matrix, big):
     """Run Hungarian on a cost matrix and return the cost, or inf if any box is unassignable."""
     matching_cost, assignment = hungarian_min_cost_assignment(cost_matrix)
     if any(cost_matrix[i][assignment[i]] >= big for i in range(len(cost_matrix))):
@@ -166,7 +166,7 @@ def _matching_cost_from_matrix(cost_matrix, big):
     return matching_cost
 
 # Exact Minimum Matching cost (hMM)
-def exact_minimum_matching_cost(state: SokobanState) -> float:
+def exact_push_hungarian_cost(state: SokobanState) -> float:
     boxes = list(state.boxes)
     goals = list(state.goals)
     if not boxes:
@@ -176,7 +176,7 @@ def exact_minimum_matching_cost(state: SokobanState) -> float:
     cost_matrix = []
 
     for box in boxes:
-        distances = exact_single_stone_push_distances(state.player, box,
+        distances = single_stone_push_distances(state.player, box,
                                                        state.walls, state.rows, state.cols)
         row = []
         reachable_any = False
@@ -191,7 +191,7 @@ def exact_minimum_matching_cost(state: SokobanState) -> float:
             return float("inf")
         cost_matrix.append(row)
 
-    return _matching_cost_from_matrix(cost_matrix, big)
+    return _hungarian_cost_or_inf(cost_matrix, big)
 
 # Relaxed push distances (reverse BFS ignoring player position)
 def _relaxed_push_distance_map(goal: Position, walls: frozenset,
@@ -220,7 +220,7 @@ def _relaxed_push_distance_map(goal: Position, walls: frozenset,
     return dist
 
 
-def relaxed_push_matching_cost(state: SokobanState) -> float:
+def relaxed_push_hungarian_cost(state: SokobanState) -> float:
     boxes = list(state.boxes)
     goals = list(state.goals)
     if not boxes or state.is_solved():
@@ -246,21 +246,21 @@ def relaxed_push_matching_cost(state: SokobanState) -> float:
             return float("inf")
         cost_matrix.append(row)
 
-    return _matching_cost_from_matrix(cost_matrix, big)
+    return _hungarian_cost_or_inf(cost_matrix, big)
 
 # Walk lower bound
-def walk_before_first_push_lb(state: SokobanState) -> int:
+def player_to_nearest_box_lb(state: SokobanState) -> int:
     if not state.boxes or state.is_solved():
         return 0
     return max(min(manhattan_distance(state.player, box) for box in state.boxes) - 1, 0)
 
 
 # Linear-conflict detection (Pereira et al.)
-def _hmm_two_stones(b1, b2, man, goals, walls, rows, cols):
+def _two_stone_hungarian_cost(b1, b2, man, goals, walls, rows, cols):
     """hMM on a reduced instance with only two stones."""
     goals_list = list(goals)
-    d1 = {g: exact_push_distance(man, b1, g, walls, rows, cols) for g in goals_list}
-    d2 = {g: exact_push_distance(man, b2, g, walls, rows, cols) for g in goals_list}
+    d1 = {g: single_stone_push_distance(man, b1, g, walls, rows, cols) for g in goals_list}
+    d2 = {g: single_stone_push_distance(man, b2, g, walls, rows, cols) for g in goals_list}
 
     best = float("inf")
     for i in range(len(goals_list)):
@@ -299,21 +299,21 @@ def _is_linear_conflict(b1, b2, man, goals, walls, rows, cols):
     if manhattan_distance(b1, b2) != 1:
         return False
 
-    current = _hmm_two_stones(b1, b2, man, goals, walls, rows, cols)
+    current = _two_stone_hungarian_cost(b1, b2, man, goals, walls, rows, cols)
     if current == float("inf"):
         return False
 
     successors = _two_stone_successors(b1, b2, man, walls, rows, cols)
     if not successors:
-        return False
+        return True
 
     for nb1, nb2, nman in successors:
-        if _hmm_two_stones(nb1, nb2, nman, goals, walls, rows, cols) < current + 1:
+        if _two_stone_hungarian_cost(nb1, nb2, nman, goals, walls, rows, cols) < current:
             return False
     return True
 
 
-def _maximum_matching_size(conflict_pairs, n):
+def _max_conflict_matching(conflict_pairs, n):
     """Maximum matching in a general graph via recursive backtracking."""
     adj = [[] for _ in range(n)]
     for i, j in conflict_pairs:
@@ -342,4 +342,4 @@ def count_linear_conflicts(state: SokobanState) -> int:
             if _is_linear_conflict(boxes[i], boxes[j], state.player,
                                    state.goals, state.walls, state.rows, state.cols):
                 pairs.append((i, j))
-    return _maximum_matching_size(pairs, len(boxes))
+    return _max_conflict_matching(pairs, len(boxes))

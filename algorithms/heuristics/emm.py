@@ -1,7 +1,7 @@
 from algorithms.heuristics.heuristic_commons import (
-    exact_minimum_matching_cost,
+    exact_push_hungarian_cost,
     count_linear_conflicts,
-    walk_before_first_push_lb
+    player_to_nearest_box_lb
 )
 from utils.state import SokobanState
 
@@ -14,8 +14,8 @@ def emm_heuristic(state: SokobanState) -> float:
       - L(state): Number of linear conflicts in the current assignment
       - D(state): Player-to-nearest-box distance (lower bound on first move)
     """
-    matching_cost = exact_minimum_matching_cost(state)
+    matching_cost = exact_push_hungarian_cost(state)
     if matching_cost == float("inf"):
         return matching_cost
 
-    return matching_cost + 2 * count_linear_conflicts(state) + walk_before_first_push_lb(state)
+    return matching_cost + 2 * count_linear_conflicts(state) + player_to_nearest_box_lb(state)
