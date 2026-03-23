@@ -18,7 +18,6 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 import math
 
 # ── Level data ────────────────────────────────────────────────────────────────
-
 LEVEL = """\
 #####################
 ####XXX##############
@@ -41,23 +40,23 @@ LEVEL = """\
 
 PALETTE = {
     "bg":          (15,  12,  24),   # deep void outside
-    "floor":       (38,  32,  55),   # dark purple floor
-    "floor_inner": (44,  38,  62),   # slightly lighter inner floor
-    "wall_face":   (80,  60, 110),   # purple-toned wall face
-    "wall_top":    (110, 85, 150),   # lighter wall top highlight
-    "wall_shadow": (30,  22,  44),   # wall shadow
-    "wall_edge":   (130, 100, 175),  # wall bright edge
-    "box":         (210, 140,  50),  # warm amber box
-    "box_dark":    (150,  90,  20),  # box shadow side
-    "box_light":   (255, 200, 100),  # box highlight
-    "box_goal":    (255, 220,  80),  # box-on-goal (golden)
-    "box_goal_glow":(255,240,140),
-    "goal":        (80, 180, 220),   # cyan goal marker
-    "goal_glow":   (120, 220, 255),
-    "player":      (100, 220, 160),  # mint-green player
-    "player_dark": ( 40, 140,  90),
-    "player_light":(180, 255, 200),
-    "player_goal": (120, 255, 180),  # player on goal
+    "floor":       (232, 220, 206),  # subtle tile border on #fff5ec
+    "floor_inner": (255, 245, 236),  # #fff5ec
+    "wall_face":   ( 52,  52,  52),  # #343434
+    "wall_top":    ( 75,  75,  75),  # lighter gray top
+    "wall_shadow": ( 25,  25,  25),  # dark shadow
+    "wall_edge":   ( 90,  90,  90),  # light gray edge
+    "box":         (168, 165, 178),  # cool light gray
+    "box_dark":    (115, 112, 125),  # darker gray shadow
+    "box_light":   (205, 203, 213),  # lighter gray highlight
+    "box_goal":    (175, 172, 185),  # same gray on goal
+    "box_goal_glow":(210, 208, 218),  # pale gray glow
+    "goal":        (160, 103, 174),  # #a067ae purple
+    "goal_glow":   (188, 129, 202),  # #bc81ca lighter purple
+    "player":      ( 45, 155, 175),  # dark turquoise-blue
+    "player_dark": ( 25, 100, 120),  # deeper shadow
+    "player_light":( 95, 200, 218),  # lighter highlight
+    "player_goal": ( 45, 155, 175),  # same on goal
     "deadlock":    (220,  50,  50),  # red X deadlock
     "deadlock_dark":(140,  20,  20),  # X shadow
     "deadlock_glow":(255, 100, 100),  # X glow
@@ -105,12 +104,11 @@ def draw_goal(draw: ImageDraw.Draw, x: int, y: int, s: int):
     # glow ring
     draw.ellipse([cx - r - 2, cy - r - 2, cx + r + 2, cy + r + 2],
                  outline=PALETTE["goal_glow"], width=1)
-    # goal diamond
+    # goal diamond — fully opaque fill
     pts = [cx, cy - r,  cx + r, cy,  cx, cy + r,  cx - r, cy]
-    draw.polygon(pts, outline=PALETTE["goal"], fill=None)
-    draw.polygon(pts, outline=PALETTE["goal"], fill=(*PALETTE["goal"], 80))
+    draw.polygon(pts, outline=PALETTE["goal"], fill=PALETTE["goal"])
     # center dot
-    draw.ellipse([cx - 2, cy - 2, cx + 2, cy + 2], fill=PALETTE["goal"])
+    draw.ellipse([cx - 2, cy - 2, cx + 2, cy + 2], fill=PALETTE["goal_glow"])
 
 
 def draw_box(draw: ImageDraw.Draw, x: int, y: int, s: int, on_goal: bool = False):
@@ -139,25 +137,21 @@ def draw_box(draw: ImageDraw.Draw, x: int, y: int, s: int, on_goal: bool = False
     draw.line([bx + 4, cy, bx + bw - 5, cy], fill=dark_col, width=1)
 
     if on_goal:
-        # star glow overlay
-        draw.ellipse([bx + bw // 4, by + bh // 4,
-                      bx + 3 * bw // 4, by + 3 * bh // 4],
-                     outline=PALETTE["box_goal_glow"], width=1)
+        # mini goal marker (ring + diamond + dot) centered on the tile
+        cx, cy = x + s // 2, y + s // 2
+        r = s // 5
+        draw.ellipse([cx - r - 2, cy - r - 2, cx + r + 2, cy + r + 2],
+                     outline=PALETTE["goal_glow"], width=1)
+        pts = [cx, cy - r,  cx + r, cy,  cx, cy + r,  cx - r, cy]
+        draw.polygon(pts, fill=PALETTE["goal"], outline=PALETTE["goal"])
+        draw.ellipse([cx - 2, cy - 2, cx + 2, cy + 2], fill=PALETTE["goal_glow"])
 
 
 def draw_player(draw: ImageDraw.Draw, x: int, y: int, s: int, on_goal: bool = False):
     draw_floor(draw, x, y, s)
-    if on_goal:
-        # draw goal underneath
-        cx, cy = x + s // 2, y + s // 2
-        r = s // 4
-        pts = [cx, cy - r, cx + r, cy, cx, cy + r, cx - r, cy]
-        draw.polygon(pts, outline=PALETTE["goal"])
-
     cx, cy = x + s // 2, y + s // 2
     pc = PALETTE["player_goal"] if on_goal else PALETTE["player"]
 
-    # body (rounded rect)
     bpad = s // 5
     draw.ellipse([x + bpad, y + bpad, x + s - bpad - 1, y + s - bpad - 1],
                  fill=PALETTE["player_dark"])
@@ -169,14 +163,9 @@ def draw_player(draw: ImageDraw.Draw, x: int, y: int, s: int, on_goal: bool = Fa
     draw.ellipse([x + hp, y + hp, x + hp + s // 6, y + hp + s // 6],
                  fill=PALETTE["player_light"])
 
-    # direction indicator (small triangle pointing right)
-    tr = s // 8
-    pts = [cx + tr, cy, cx - tr // 2, cy - tr, cx - tr // 2, cy + tr]
-    draw.polygon(pts, fill=PALETTE["player_dark"])
-
 
 def draw_deadlock(draw: ImageDraw.Draw, x: int, y: int, s: int):
-    """Floor tile with a bold red X to mark a deadlock square."""
+    """Bold red X to mark a deadlock square."""
     draw_floor(draw, x, y, s)
     pad = s // 6
     thick = max(3, s // 10)
@@ -218,7 +207,7 @@ def render_level(level_text: str, tile_size: int = 48) -> Image.Image:
     img_w = grid_w * tile_size + 2 * padding
     img_h = grid_h * tile_size + 2 * padding
 
-    img = Image.new("RGB", (img_w, img_h), PALETTE["bg"])
+    img = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
     for row_i, row in enumerate(rows):
@@ -230,7 +219,7 @@ def render_level(level_text: str, tile_size: int = 48) -> Image.Image:
             if ch == "#":
                 draw_wall(draw, px, py, s)
             elif ch == " ":
-                pass  # remains bg
+                pass  # remains transparent
             elif ch == ".":
                 draw_goal(draw, px, py, s)
             elif ch == "$":
@@ -246,15 +235,6 @@ def render_level(level_text: str, tile_size: int = 48) -> Image.Image:
             else:
                 draw_floor(draw, px, py, s)
 
-    # slight overall vignette
-    vignette = Image.new("RGBA", (img_w, img_h), (0, 0, 0, 0))
-    vd = ImageDraw.Draw(vignette)
-    for i in range(min(padding, 30)):
-        alpha = int(180 * (1 - i / min(padding, 30)))
-        vd.rectangle([i, i, img_w - i - 1, img_h - i - 1],
-                     outline=(0, 0, 0, alpha))
-    img = Image.alpha_composite(img.convert("RGBA"), vignette).convert("RGB")
-
     return img
 
 
@@ -262,12 +242,19 @@ def render_level(level_text: str, tile_size: int = 48) -> Image.Image:
 
 def main():
     parser = argparse.ArgumentParser(description="Render a Sokoban level to PNG.")
+    parser.add_argument("input",       nargs="?",             help="Path to a .txt level file (optional, falls back to built-in LEVEL)")
     parser.add_argument("--output",    default="sokoban_level.png", help="Output PNG path")
-    parser.add_argument("--tile-size", default=48, type=int, help="Tile size in pixels (default 48)")
+    parser.add_argument("--tile-size", default=48, type=int,  help="Tile size in pixels (default 48)")
     args = parser.parse_args()
 
+    if args.input:
+        with open(args.input) as f:
+            level = f.read()
+    else:
+        level = LEVEL
+
     print(f"Rendering level ({args.tile_size}px tiles) …")
-    img = render_level(LEVEL, tile_size=args.tile_size)
+    img = render_level(level, tile_size=args.tile_size)
     img.save(args.output)
     print(f"Saved → {args.output}")
 
