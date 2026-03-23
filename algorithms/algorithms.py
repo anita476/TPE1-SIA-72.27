@@ -11,7 +11,6 @@ from algorithms.heuristics.deadlock import deadlock_heuristic
 from algorithms.heuristics.combination import combination_heuristic
 from algorithms.heuristics.improved_basic_hungarian_plus_player_distance import improved_hungarian_plus_player_distance_with_complex_count_linear_conflict
 from algorithms.heuristics.push_distance import push_distance_heuristic
-from algorithms.heuristics.simple_emm import emm_heuristic as simple_emm_heuristic
 
 
 ALGORITHMS = {
@@ -34,5 +33,4 @@ HEURISTICS = {
     "deadlock": deadlock_heuristic,
     "combination": combination_heuristic,
     "push_distance": push_distance_heuristic,
-    "simple_emm": simple_emm_heuristic,
 }
