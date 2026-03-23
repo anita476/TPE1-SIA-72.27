@@ -46,6 +46,7 @@ def _compute_all_deadlock_positions(state: SokobanState) -> frozenset:
     for corner in corner_deadlocks:
         deadlock_set.update(_find_edge_deadlocks_from_corner(corner, state))
 
+    print_deadlock_map(state,deadlock_set)
     return frozenset(deadlock_set)
 
 
@@ -167,7 +168,6 @@ def deadlock_heuristic(state: SokobanState) -> float:
     for box in state.boxes:
         if _box_in_deadlock(box, state, _deadlock_positions_cache):
             return float('inf')  # unsolvable
-    
     return 0  # state is potentially solvable 
 
 

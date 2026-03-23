@@ -209,5 +209,6 @@ __marimo__/
 
 .DS_Store
 
-## matplot graphics
+## matplot graphics and renders
 plots/*
+*.png
