@@ -2,7 +2,7 @@
 
 ## Build
 
-No compilation required. Python 3.10+ with standard library only.
+No compilation required. Python 3.10+.
 
 Optional: for bar charts (`scripts/plot_level_metrics.py`), install matplotlib:
 
