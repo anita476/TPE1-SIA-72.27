@@ -21,6 +21,7 @@ from algorithms.utils import SearchResult
 from run_all_levels import run_level
 
 try:
+    import numpy as np
     import matplotlib.pyplot as plt
     import matplotlib.patches as mpatches
     from matplotlib.ticker import MaxNLocator, StrMethodFormatter
@@ -44,6 +45,29 @@ HEURISTIC_ONLY_ALGORITHMS = frozenset({"astar", "greedy"})
 INTEGER_YAXIS_METRICS = frozenset(
     {"expanded_nodes", "frontier_nodes", "cost", "boxes_displaced"}
 )
+TIME_METRICS = frozenset({"processing_time", "heuristic_time"})
+
+# Distinct fill colors per metric series (grouped bar mode).
+SERIES_PALETTE = [
+    "#4a90d9",
+    "#27ae60",
+    "#e67e22",
+    "#9b59b6",
+    "#1abc9c",
+    "#c0392b",
+    "#34495e",
+    "#f39c12",
+]
+SERIES_EDGE_NON_SD = [
+    "#2c6cb0",
+    "#1e8449",
+    "#c45f1a",
+    "#7d3c98",
+    "#148f82",
+    "#922b21",
+    "#2c3e50",
+    "#c08a0f",
+]
 IMAGE_SUFFIXES = frozenset({".png", ".pdf", ".svg", ".jpg", ".jpeg", ".webp"})
 
 FIG_DPI = 144
@@ -146,6 +170,41 @@ HEURISTIC_LABEL_DISPLAY = {
 
 def format_bar_label(label: str) -> str:
     return HEURISTIC_LABEL_DISPLAY.get(label, label)
+
+
+def metric_legend_label(metric: str) -> str:
+    return {
+        "processing_time": "Total time",
+        "heuristic_time": "Heuristic time",
+        "memory": "Memory (KB)",
+        "frontier_nodes": "Frontier nodes",
+        "expanded_nodes": "Expanded nodes",
+        "cost": "Cost",
+        "boxes_displaced": "Box pushes",
+        "heuristic_time_ratio": "h-time / total",
+    }.get(metric, metric)
+
+
+def combined_ylabel_for_metrics(metrics: list[str], repeat: int) -> str:
+    if TIME_METRICS.issuperset(metrics):
+        base = "Time (s)"
+    elif all(m in INTEGER_YAXIS_METRICS for m in metrics):
+        base = "Value"
+    else:
+        base = "Value"
+    if repeat > 1:
+        base = f"{base} (mean)"
+    return base
+
+
+def _set_grouped_yaxis_formatter(ax: plt.Axes, metrics: list[str]) -> None:
+    all_int = all(m in INTEGER_YAXIS_METRICS for m in metrics)
+    if all_int:
+        ax.yaxis.set_major_locator(MaxNLocator(nbins="auto", integer=True))
+        ax.yaxis.set_major_formatter(StrMethodFormatter("{x:.0f}"))
+    else:
+        ax.yaxis.set_major_locator(MaxNLocator(nbins="auto", integer=False))
+        ax.yaxis.set_major_formatter(StrMethodFormatter("{x:.6g}"))
 
 
 def row_status(result: SearchResult | None, error_msg: str | None) -> str:
@@ -455,12 +514,12 @@ def plot_bars(
             tops = [values[i] + (yerr_plot[i] if yerr_plot else 0) for i in range(n)]
             ymax = max(tops) if tops else 1.0
 
-            use_integer_y = yaxis in INTEGER_YAXIS_METRICS and repeat == 1
-            if use_integer_y:
+            if yaxis in INTEGER_YAXIS_METRICS:
                 ax.yaxis.set_major_locator(MaxNLocator(nbins="auto", integer=True))
                 ax.yaxis.set_major_formatter(StrMethodFormatter("{x:.0f}"))
             else:
                 ax.yaxis.set_major_locator(MaxNLocator(nbins="auto", integer=False))
+                ax.yaxis.set_major_formatter(StrMethodFormatter("{x:.6g}"))
 
             patches = getattr(bar_container, "patches", None) or []
             for i, ann in enumerate(annotations):
@@ -495,6 +554,189 @@ def plot_bars(
             fig.subplots_adjust(left=0.09, right=0.76, top=0.88, bottom=bottom_margin)
 
         return fig
+
+
+def plot_grouped_bars(
+    series_rows: list[list[PlotRow]],
+    metrics: list[str],
+    title: str,
+    xlabel: str | None,
+    repeat: int,
+) -> plt.Figure:
+    """One figure: grouped bars per category, one series per metric (same Y scale)."""
+    k = len(metrics)
+    n_cat = len(series_rows[0])
+    assert all(len(sr) == n_cat for sr in series_rows), "Metrics must share the same categories"
+    tick_labels = [format_bar_label(series_rows[0][i]["label"]) for i in range(n_cat)]
+    show_sd = repeat > 1
+
+    x = np.arange(n_cat, dtype=float)
+    width = 0.8 / k
+    fig_w = min(11.0 + n_cat * k * 0.11, 24.0)
+    fig_h = FIG_SIZE[1]
+
+    with plt.rc_context(PLOT_RC):
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=FIG_DPI)
+    fig.patch.set_facecolor(STYLE["figure_bg"])
+    ax.set_facecolor(STYLE["axes_bg_sd"] if show_sd else STYLE["axes_bg"])
+
+    fig.suptitle(
+        title,
+        fontsize=13,
+        fontweight="600",
+        color=STYLE["text_title"],
+        y=0.97,
+    )
+
+    if n_cat == 0:
+        ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
+        return fig
+
+    ymax = 0.0
+    capsize = max(3.0, ERROR_CAPSIZE - 0.5 * (k - 1))
+
+    for j, metric in enumerate(metrics):
+        vals, colors, annotations, yerrs = _bar_series(series_rows[j], repeat)
+        plot_colors = [
+            SERIES_PALETTE[j % len(SERIES_PALETTE)] if c == STYLE["bar_ok"] else c
+            for c in colors
+        ]
+        edges: list[str] = []
+        for c in colors:
+            if show_sd:
+                edges.append(STYLE["bar_edge_sd"])
+            elif c == STYLE["bar_ok"]:
+                edges.append(SERIES_EDGE_NON_SD[j % len(SERIES_EDGE_NON_SD)])
+            else:
+                edges.append(STYLE["bar_bad_edge"])
+
+        yerr_plot: list[float] | None = None
+        if repeat > 1:
+            yerr_plot = [0.0 if e is None else float(e) for e in yerrs]
+
+        for i, v in enumerate(vals):
+            ye = yerr_plot[i] if yerr_plot is not None else 0.0
+            ymax = max(ymax, float(v) + float(ye))
+
+        offset = width * (j - (k - 1) / 2)
+        kw: dict = {
+            "x": x + offset,
+            "height": vals,
+            "width": width,
+            "color": plot_colors,
+            "edgecolor": edges,
+            "linewidth": 0.9 if show_sd else 0.55,
+            "zorder": 2,
+            "label": metric_legend_label(metric),
+        }
+        if yerr_plot is not None:
+            kw["yerr"] = yerr_plot
+            kw["capsize"] = capsize
+            kw["error_kw"] = {
+                "elinewidth": ERROR_LINEWIDTH,
+                "capthick": ERROR_CAPTHICK,
+                "ecolor": STYLE["err_bar_sd"],
+                "color": STYLE["err_bar_sd"],
+                "zorder": 5,
+                "alpha": 1.0,
+            }
+        bar_container = ax.bar(**kw)
+
+        patches = getattr(bar_container, "patches", None) or []
+        for i, ann in enumerate(annotations):
+            if ann and i < len(patches):
+                bar = patches[i]
+                ypos = float(bar.get_height())
+                if yerr_plot is not None:
+                    ypos += yerr_plot[i]
+                off = ymax * 0.02 if ymax > 0 else 0.02
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    ypos + off,
+                    ann,
+                    ha="center",
+                    va="bottom",
+                    fontsize=8,
+                    color=STYLE["text_muted"],
+                    zorder=6,
+                )
+
+    ax.set_xticks(x)
+    rot = 35 if tick_labels and max(len(str(t)) for t in tick_labels) > 12 else 0
+    ha = "right" if rot else "center"
+    ax.set_xticklabels(tick_labels, rotation=rot, ha=ha)
+    if xlabel:
+        ax.set_xlabel(xlabel, color=STYLE["text_axis"])
+
+    ax.set_ylabel(
+        combined_ylabel_for_metrics(metrics, repeat),
+        color=STYLE["text_axis"],
+    )
+    _set_grouped_yaxis_formatter(ax, metrics)
+
+    if show_sd:
+        ax.grid(False)
+    else:
+        ax.grid(
+            axis="y",
+            linestyle="-",
+            linewidth=0.6,
+            alpha=0.55,
+            color=STYLE["grid"],
+            zorder=0,
+        )
+        ax.set_axisbelow(True)
+
+    leg_edges = [
+        STYLE["bar_edge_sd"] if show_sd else SERIES_EDGE_NON_SD[j % len(SERIES_EDGE_NON_SD)]
+        for j in range(k)
+    ]
+    legend_handles = [
+        mpatches.Patch(
+            facecolor=SERIES_PALETTE[j % len(SERIES_PALETTE)],
+            edgecolor=leg_edges[j],
+            linewidth=0.85 if show_sd else 0.55,
+            label=metric_legend_label(metrics[j]),
+        )
+        for j in range(k)
+    ]
+    legend_handles.append(
+        mpatches.Patch(
+            facecolor=STYLE["bar_bad"],
+            edgecolor=STYLE["bar_bad_edge"],
+            linewidth=0.85 if show_sd else 0.6,
+            label="Missing / issue",
+        )
+    )
+    ncol = 2 if k >= 4 else 1
+    ax.legend(
+        handles=legend_handles,
+        loc="upper left",
+        bbox_to_anchor=(1.02, 1.0),
+        bbox_transform=ax.transAxes,
+        borderaxespad=0.0,
+        frameon=True,
+        facecolor=STYLE["legend_frame"],
+        edgecolor=STYLE["grid"],
+        framealpha=0.98,
+        fontsize=8,
+        ncol=ncol,
+    )
+
+    if show_sd:
+        for spine in ax.spines.values():
+            spine.set_visible(True)
+            spine.set_color(STYLE["spine_sd"])
+            spine.set_linewidth(0.9)
+        ax.tick_params(axis="both", colors=STYLE["spine_sd"], width=0.8, length=4)
+    else:
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+
+    bottom_margin = 0.22 if rot else 0.14
+    fig.subplots_adjust(left=0.09, right=0.72 if k >= 4 else 0.76, top=0.88, bottom=bottom_margin)
+
+    return fig
 
 
 def _safe_filename_part(s: str) -> str:
@@ -532,6 +774,19 @@ def default_output_basename(
 ) -> str:
     ext = fmt.lstrip(".")
     return f"{_safe_filename_part(level_stem)}__{scenario_slug}__{metric}.{ext}"
+
+
+def default_grouped_basename(
+    level_stem: str,
+    scenario_slug: str,
+    metrics: list[str],
+    fmt: str,
+) -> str:
+    ext = fmt.lstrip(".")
+    tag = "_".join(_safe_filename_part(m) for m in metrics[:8])
+    if len(metrics) > 8:
+        tag += f"_plus{len(metrics) - 8}"
+    return f"{_safe_filename_part(level_stem)}__{scenario_slug}__grouped_{tag}.{ext}"
 
 
 def validate_cli(ns: argparse.Namespace) -> None:
@@ -603,7 +858,8 @@ def save_figure(fig: plt.Figure, path: Path, fmt: str | None = None) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Bar charts for one Sokoban level. One image per metric; optional repeated runs with std.",
+        description="Bar charts for one Sokoban level. One image per metric (default), or grouped "
+        "bars with --group-yaxis. Optional repeated runs with std.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -611,6 +867,8 @@ Examples:
   %(prog)s --level levels/level1.txt --out plots/
   %(prog)s --level levels/level1.txt --runs 5 --out plots/
       (each bar: mean ± sample std over 5 runs)
+  %(prog)s --level levels/level1.txt --onlyheuristics --algorithm astar \\
+      --group-yaxis --yaxis processing_time heuristic_time -o plots/
 """,
     )
     parser.add_argument(
@@ -657,6 +915,12 @@ Examples:
         help="Metrics to plot (default: all). One file per metric when saving to a directory",
     )
     parser.add_argument(
+        "--group-yaxis",
+        action="store_true",
+        help="Plot all metrics in --yaxis as grouped bars in one figure (requires explicit "
+        "--yaxis with 2+ metrics; same Y scale — use comparable quantities, e.g. two times)",
+    )
+    parser.add_argument(
         "--timeout",
         type=int,
         default=None,
@@ -676,7 +940,8 @@ Examples:
         type=str,
         default=None,
         metavar="PATH",
-        help="Output: .png/.pdf file (single metric only) or directory (auto-named files, any # of metrics)",
+        help="Output: .png/.pdf file (single metric only) or directory (auto-named files). "
+        "With --group-yaxis the file basename is ignored: auto-named file in that directory.",
     )
     ns = parser.parse_args()
 
@@ -691,8 +956,13 @@ Examples:
         raise SystemExit(f"Level file not found: {level_path}")
 
     validate_cli(ns)
+    if ns.group_yaxis and (not ns.yaxis or len(ns.yaxis) < 2):
+        raise SystemExit(
+            "--group-yaxis requires explicit --yaxis with at least two metrics "
+            "(e.g. --yaxis processing_time heuristic_time)."
+        )
     metrics = resolve_metrics(ns.yaxis)
-    multi = len(metrics) > 1
+    multi = len(metrics) > 1 and not ns.group_yaxis
     out = resolve_output(ns.out, multi)
 
     if not out.interactive:
@@ -733,23 +1003,44 @@ Examples:
             f"Unsupported image type {out.save_file.suffix!r}; use one of {sorted(IMAGE_SUFFIXES)}"
         )
 
-    for yaxis in metrics:
-        rows = attach_values(base_rows, yaxis, repeat)
-        subtitle = yaxis_label(yaxis)
-        fig = plot_bars(rows, title_base, subtitle, yaxis, xlabel, repeat)
-
+    if ns.group_yaxis:
+        series_rows = [attach_values(base_rows, m, repeat) for m in metrics]
+        fig = plot_grouped_bars(series_rows, metrics, title_base, xlabel, repeat)
         if out.interactive:
             plt.show()
             plt.close(fig)
         elif out.save_file is not None:
-            save_figure(fig, out.save_file, save_fmt)
+            auto_name = default_grouped_basename(
+                level_path.stem, scenario, metrics, save_fmt
+            )
+            save_path = out.save_file.parent / auto_name
+            save_figure(fig, save_path, save_fmt)
+            print(f"Wrote {save_path}")
             plt.close(fig)
         elif out.batch_dir is not None:
-            fname = default_output_basename(level_path.stem, scenario, yaxis, "png")
-            save_figure(fig, out.batch_dir / fname, "png")
+            fname = default_grouped_basename(level_path.stem, scenario, metrics, "png")
+            save_path = out.batch_dir / fname
+            save_figure(fig, save_path, "png")
+            print(f"Wrote {save_path}")
             plt.close(fig)
+    else:
+        for yaxis in metrics:
+            rows = attach_values(base_rows, yaxis, repeat)
+            subtitle = yaxis_label(yaxis)
+            fig = plot_bars(rows, title_base, subtitle, yaxis, xlabel, repeat)
 
-    if out.batch_dir is not None and not out.interactive:
+            if out.interactive:
+                plt.show()
+                plt.close(fig)
+            elif out.save_file is not None:
+                save_figure(fig, out.save_file, save_fmt)
+                plt.close(fig)
+            elif out.batch_dir is not None:
+                fname = default_output_basename(level_path.stem, scenario, yaxis, "png")
+                save_figure(fig, out.batch_dir / fname, "png")
+                plt.close(fig)
+
+    if out.batch_dir is not None and not out.interactive and not ns.group_yaxis:
         print(f"Wrote {len(metrics)} figure(s) to {out.batch_dir}")
 
 

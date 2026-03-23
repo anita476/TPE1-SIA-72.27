@@ -74,6 +74,7 @@ python scripts/plot_level_metrics.py --level levels/level1.txt --onlyheuristics 
 | `--yaxis` | **all** | Metrics to plot (`processing_time`, `expanded_nodes`, …); omit = all |
 | `--timeout` | none | Per-run limit (seconds) |
 | `--runs` | `1` | Repeat each search **N** times per bar; if **N > 1**, bars show **mean ± sample std** over valid samples |
-| `-o` / `--out` | — | **File** (`.png`, `.pdf`, …): one metric only. **Directory**: one auto-named PNG per metric |
+| `--group-yaxis` | off | One figure with **grouped bars** per category; requires explicit `--yaxis` with **2+** metrics (same Y scale; e.g. `processing_time heuristic_time`) |
+| `-o` / `--out` | — | **File**: one metric only. **Directory**: one auto-named PNG per metric. **With `--group-yaxis`**: pass a directory or any path under it — the **filename is always auto-generated** (`…__grouped_<metrics>.png`; extension from path if you pass a file) |
 
 Each metric reuses the same batch of runs (no duplicate work across PNGs). With `--runs 1`, one execution per bar per metric.
