@@ -4,7 +4,7 @@ from algorithms.heuristics.basic_hungarian_plus_player_distance import basic_hun
 from algorithms.iddfs import iddfs
 from algorithms.greedy import greedy
 from algorithms.astar import astar
-from algorithms.heuristics.manhattan import manhattan_heuristic 
+from algorithms.heuristics.manhattan import manhattan_heuristic, manhattan_heuristics_with_greedy_asignment
 from algorithms.heuristics.mm import mm_heuristic
 from algorithms.heuristics.emm import emm_heuristic
 from algorithms.heuristics.deadlock import deadlock_heuristic
@@ -26,6 +26,7 @@ HEURISTIC_ALGORITHMS = {"greedy", "astar"}
 
 HEURISTICS = {
     "manhattan": manhattan_heuristic,
+    "manhattan_greedy": manhattan_heuristics_with_greedy_asignment,
     "basic_hungarian_plus_player_distance": basic_hungarian_plus_player_distance,
     "improved_hungarian_plus_player_distance": improved_hungarian_plus_player_distance_with_complex_count_linear_conflict,
     "mm": mm_heuristic,
