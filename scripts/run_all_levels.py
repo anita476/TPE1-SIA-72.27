@@ -26,7 +26,13 @@ def run_search(level_path: str, algorithm: str, heuristic_name: str, result_queu
         result_queue.put(("error", str(e)))
 
 
-def run_level(level_path: Path, algorithm: str, timeout: int, verbose: bool, heuristic_name: str = "emm") -> tuple:
+def run_level(
+    level_path: Path,
+    algorithm: str,
+    timeout: int | None,
+    verbose: bool,
+    heuristic_name: str = "emm",
+) -> tuple:
     level_name = level_path.stem
     level_str = str(level_path.resolve())
 
@@ -61,8 +67,10 @@ def run_level(level_path: Path, algorithm: str, timeout: int, verbose: bool, heu
     return (level_name, result, error_msg)
 
 
-def format_result(level_name: str, result, error_msg: str | None, timeout: int) -> str:
+def format_result(level_name: str, result, error_msg: str | None, timeout: int | None) -> str:
     if error_msg == "Timeout":
+        if timeout is None:
+            return f"{level_name}: TIMEOUT"
         return f"{level_name}: TIMEOUT ({timeout}s)"
     if result is None:
         return f"{level_name}: ERROR - {error_msg}"
