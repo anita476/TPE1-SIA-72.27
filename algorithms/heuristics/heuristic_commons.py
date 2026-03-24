@@ -1,21 +1,26 @@
 from collections import deque
 from utils.state import Position, ALL_DIRECTIONS, SokobanState
 
+
 _reachable_cache = {}
 _push_dist_cache = {}
 _relaxed_map_cache = {}
+
 
 def clear_caches():
     _reachable_cache.clear()
     _push_dist_cache.clear()
     _relaxed_map_cache.clear()
 
+
 # Basic utilities
 def manhattan_distance(pos1: Position, pos2: Position) -> int:
     return abs(pos1.row - pos2.row) + abs(pos1.col - pos2.col)
 
+
 def in_bounds(pos: Position, rows: int, cols: int) -> bool:
     return 0 <= pos.row < rows and 0 <= pos.col < cols
+
 
 # Reachability
 def reachable_cells(player: Position, walls: frozenset, blocked: frozenset,
@@ -40,6 +45,7 @@ def reachable_cells(player: Position, walls: frozenset, blocked: frozenset,
     result = frozenset(visited)
     _reachable_cache[key] = result
     return result
+
 
 # Single-stone push distances (BFS)
 def single_stone_push_distances(player: Position, box: Position,
@@ -96,6 +102,7 @@ def single_stone_push_distance(player: Position, box: Position, goal: Position,
     return single_stone_push_distances(player, box, walls, rows, cols).get(
         goal, float("inf")
     )
+
 
 def hungarian_min_cost_assignment(cost_matrix: list[list[int]]) -> tuple[int, list[int]]:
     """Compute minimum-cost perfect matching for a square cost matrix.
@@ -165,6 +172,7 @@ def _hungarian_cost_or_inf(cost_matrix, big):
         return float("inf")
     return matching_cost
 
+
 # Exact Minimum Matching cost (hMM)
 def exact_push_hungarian_cost(state: SokobanState) -> float:
     boxes = list(state.boxes)
@@ -192,6 +200,7 @@ def exact_push_hungarian_cost(state: SokobanState) -> float:
         cost_matrix.append(row)
 
     return _hungarian_cost_or_inf(cost_matrix, big)
+
 
 # Relaxed push distances (reverse BFS ignoring player position)
 def _relaxed_push_distance_map(goal: Position, walls: frozenset,
@@ -247,6 +256,7 @@ def relaxed_push_hungarian_cost(state: SokobanState) -> float:
         cost_matrix.append(row)
 
     return _hungarian_cost_or_inf(cost_matrix, big)
+
 
 # Walk lower bound
 def player_to_nearest_box_lb(state: SokobanState) -> int:

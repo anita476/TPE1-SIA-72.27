@@ -21,8 +21,10 @@ ALGORITHMS = {
     "astar": astar,
 }
 
+
 # Algorithms that accept a `heuristic` keyword argument
 HEURISTIC_ALGORITHMS = {"greedy", "astar"}
+
 
 HEURISTICS = {
     "manhattan": manhattan_heuristic,

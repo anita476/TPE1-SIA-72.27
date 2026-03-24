@@ -1,5 +1,6 @@
 from utils.state import AsciiSokoban, Position, SokobanState, ALL_DIRECTIONS, Direction
 
+
 # CACHE OF DEADLOCK POS
 _deadlock_positions_cache = None  
 
