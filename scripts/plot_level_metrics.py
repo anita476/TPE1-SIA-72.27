@@ -1,5 +1,5 @@
 """
-Bar charts for search metrics on a single Sokoban level (matplotlib).
+Bar charts for search metrics on one or more Sokoban levels (matplotlib).
 
 Requires: pip install matplotlib
 """
@@ -42,6 +42,7 @@ YAXIS_CHOICES = (
 )
 
 HEURISTIC_ONLY_ALGORITHMS = frozenset({"astar", "greedy"})
+VARIABLE_METRICS = frozenset({"processing_time", "heuristic_time", "heuristic_time_ratio"})
 INTEGER_YAXIS_METRICS = frozenset(
     {"expanded_nodes", "frontier_nodes", "cost", "boxes_displaced"}
 )
@@ -89,9 +90,9 @@ STYLE = {
     "bar_bad_edge": "#95a5a6",
     "bar_edge_sd": "#000000",
     "grid": "#e8ecf0",
-    "text_title": "#343434",
-    "text_axis": "#343434",
-    "text_muted": "#343434",
+    "text_title": "#000000",
+    "text_axis": "#000000",
+    "text_muted": "#8b9bab",
     "err_bar": "#e67e22",
     "err_bar_sd": "#000000",
     "legend_frame": "#fff5ec",
@@ -105,9 +106,9 @@ PLOT_RC = {
     "axes.labelsize": 11,
     "xtick.labelsize": 9,
     "ytick.labelsize": 9,
-    "axes.spines.top": False,
-    "axes.spines.right": False,
-    "axes.edgecolor": "#343434",
+    "axes.spines.top": True,
+    "axes.spines.right": True,
+    "axes.edgecolor": "#000000",
     "axes.linewidth": 0.8,
 }
 
@@ -148,6 +149,14 @@ def metric_value(result: SearchResult | None, yaxis: str) -> float | None:
     return float(v) if attr != "memory_kb" else v
 
 
+def format_value_label(value: float, yaxis: str) -> str:
+    if value == 0.0:
+        return "0"
+    if yaxis in INTEGER_YAXIS_METRICS or yaxis == "memory":
+        return str(int(round(value)))
+    return f"{value:.2f}"
+
+
 def yaxis_label(yaxis: str) -> str:
     return {
         "processing_time": "Tiempo de procesamiento (s)",
@@ -185,6 +194,10 @@ def metric_legend_label(metric: str) -> str:
     }.get(metric, metric)
 
 
+def algorithm_legend_label(algorithm: str) -> str:
+    return {"astar": "A*", "greedy": "Greedy"}.get(algorithm, algorithm.upper())
+
+
 def combined_ylabel_for_metrics(metrics: list[str], repeat: int) -> str:
     if TIME_METRICS.issuperset(metrics):
         base = "Tiempo (s)"
@@ -192,9 +205,16 @@ def combined_ylabel_for_metrics(metrics: list[str], repeat: int) -> str:
         base = "Valor"
     else:
         base = "Valor"
-    if repeat > 1:
+    if repeat > 1 and any(m in VARIABLE_METRICS for m in metrics):
         base = f"{base} (promedio)"
     return base
+
+
+def single_metric_ylabel(metric: str, repeat: int) -> str:
+    label = yaxis_label(metric)
+    if repeat > 1 and metric in VARIABLE_METRICS:
+        label = f"{label} (promedio)"
+    return label
 
 
 def _set_grouped_yaxis_formatter(ax: plt.Axes, metrics: list[str]) -> None:
@@ -385,7 +405,6 @@ def _bar_series(
 def plot_bars(
     rows: list[PlotRow],
     title: str,
-    subtitle: str | None,
     yaxis: str,
     xlabel: str | None,
     repeat: int,
@@ -394,23 +413,16 @@ def plot_bars(
     tick_labels = [format_bar_label(l) for l in labels]
     values, colors, annotations, yerrs = _bar_series(rows, repeat)
     yerr_plot = (
-        [0.0 if e is None else float(e) for e in yerrs] if repeat > 1 else None
+        [0.0 if e is None else float(e) for e in yerrs]
+        if repeat > 1 and yaxis in VARIABLE_METRICS
+        else None
     )
-    edgecolors = (
-        [STYLE["bar_edge_sd"]] * len(colors)
-        if repeat > 1
-        else [
-            STYLE["bar_ok_edge"] if c == STYLE["bar_ok"] else STYLE["bar_bad_edge"]
-            for c in colors
-        ]
-    )
-
     show_sd = repeat > 1 and yerr_plot is not None
 
     with plt.rc_context(PLOT_RC):
         fig, ax = plt.subplots(figsize=FIG_SIZE, dpi=FIG_DPI)
         fig.patch.set_facecolor(STYLE["figure_bg"])
-        ax.set_facecolor(STYLE["axes_bg_sd"] if show_sd else STYLE["axes_bg"])
+        ax.set_facecolor(STYLE["axes_bg"])
 
         fig.suptitle(
             title,
@@ -419,16 +431,6 @@ def plot_bars(
             color=STYLE["text_title"],
             y=0.97,
         )
-        if subtitle:
-            fig.text(
-                0.5,
-                0.918,
-                subtitle,
-                ha="center",
-                fontsize=10,
-                color=STYLE["text_axis"],
-                transform=fig.transFigure,
-            )
 
         n = len(labels)
         if n == 0:
@@ -441,8 +443,8 @@ def plot_bars(
                 "height": values,
                 "width": bar_width,
                 "color": colors,
-                "edgecolor": edgecolors,
-                "linewidth": 0.9 if repeat > 1 else 0.55,
+                "edgecolor": "none",
+                "linewidth": 0,
                 "zorder": 2,
             }
             if yerr_plot is not None:
@@ -459,57 +461,37 @@ def plot_bars(
             bar_container = ax.bar(**kw)
 
             ax.set_xticks(list(x))
-            rot = 35 if tick_labels and max(len(str(l)) for l in tick_labels) > 12 else 0
-            ha = "right" if rot else "center"
+            rot = 35
+            ha = "right"
             ax.set_xticklabels(tick_labels, rotation=rot, ha=ha)
             if xlabel:
                 ax.set_xlabel(xlabel, color=STYLE["text_axis"])
 
             y_label = yaxis_label(yaxis)
             if show_sd:
-                y_label = f"{y_label} (mean)"
+                y_label = f"{y_label} (promedio)"
             ax.set_ylabel(y_label, color=STYLE["text_axis"])
-            if show_sd:
-                ax.grid(False)
-            else:
-                ax.grid(
-                    axis="y",
-                    linestyle="-",
-                    linewidth=0.6,
-                    alpha=0.55,
-                    color=STYLE["grid"],
-                    zorder=0,
-                )
-                ax.set_axisbelow(True)
-
-            leg_ok_edge = STYLE["bar_edge_sd"] if show_sd else STYLE["bar_ok_edge"]
-            leg_bad_edge = STYLE["bar_edge_sd"] if show_sd else STYLE["bar_bad_edge"]
-            legend_patches = [
-                mpatches.Patch(
-                    facecolor=STYLE["bar_ok"],
-                    edgecolor=leg_ok_edge,
-                    linewidth=0.85 if show_sd else 0.6,
-                    label="Medido",
-                ),
-                mpatches.Patch(
-                    facecolor=STYLE["bar_bad"],
-                    edgecolor=leg_bad_edge,
-                    linewidth=0.85 if show_sd else 0.6,
-                    label="Faltante / error",
-                ),
-            ]
-            ax.legend(
-                handles=legend_patches,
-                loc="upper left",
-                bbox_to_anchor=(1.02, 1.0),
-                bbox_transform=ax.transAxes,
-                borderaxespad=0.0,
-                frameon=True,
-                facecolor=STYLE["legend_frame"],
-                edgecolor=STYLE["grid"],
-                framealpha=0.98,
-                fontsize=8,
+            ax.grid(
+                axis="y",
+                which="major",
+                linestyle="-",
+                linewidth=0.6,
+                alpha=0.55,
+                color=STYLE["grid"],
+                zorder=0,
             )
+            ax.minorticks_on()
+            ax.grid(
+                axis="y",
+                which="minor",
+                linestyle=":",
+                linewidth=0.4,
+                alpha=0.4,
+                color="#cccccc",
+                zorder=0,
+            )
+            ax.tick_params(axis="x", which="minor", bottom=False)
+            ax.set_axisbelow(True)
 
             tops = [values[i] + (yerr_plot[i] if yerr_plot else 0) for i in range(n)]
             ymax = max(tops) if tops else 1.0
@@ -522,33 +504,27 @@ def plot_bars(
                 ax.yaxis.set_major_formatter(StrMethodFormatter("{x:.6g}"))
 
             patches = getattr(bar_container, "patches", None) or []
-            for i, ann in enumerate(annotations):
-                if ann and i < len(patches):
-                    bar = patches[i]
-                    ypos = bar.get_height()
-                    if yerr_plot is not None:
-                        ypos += yerr_plot[i]
-                    off = ymax * 0.02 if ymax > 0 else 0.02
-                    ax.text(
-                        bar.get_x() + bar.get_width() / 2,
-                        ypos + off,
-                        ann,
-                        ha="center",
-                        va="bottom",
-                        fontsize=10,
-                        color=STYLE["text_muted"],
-                        zorder=6,
-                    )
+            for i in range(min(len(patches), n)):
+                bar = patches[i]
+                ypos = bar.get_height()
+                if yerr_plot is not None:
+                    ypos += yerr_plot[i]
+                off = ymax * 0.02 if ymax > 0 else 0.02
+                label_text = annotations[i] if annotations[i] else format_value_label(values[i], yaxis)
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    ypos + off,
+                    label_text,
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
+                    color="#000000",
+                    zorder=6,
+                    rotation=0,
+                )
 
-            if show_sd:
-                for spine in ax.spines.values():
-                    spine.set_visible(True)
-                    spine.set_color(STYLE["spine_sd"])
-                    spine.set_linewidth(0.9)
-                ax.tick_params(axis="both", colors=STYLE["spine_sd"], width=0.8, length=4)
-            else:
-                ax.spines["top"].set_visible(False)
-                ax.spines["right"].set_visible(False)
+            for spine in ax.spines.values():
+                spine.set_visible(True)
 
             bottom_margin = 0.22 if rot else 0.14
             fig.subplots_adjust(left=0.09, right=0.76, top=0.88, bottom=bottom_margin)
@@ -563,22 +539,46 @@ def plot_grouped_bars(
     xlabel: str | None,
     repeat: int,
 ) -> plt.Figure:
-    """One figure: grouped bars per category, one series per metric (same Y scale)."""
-    k = len(metrics)
-    n_cat = len(series_rows[0])
-    assert all(len(sr) == n_cat for sr in series_rows), "Metrics must share the same categories"
+    return plot_grouped_series(
+        series_rows=series_rows,
+        series_labels=[metric_legend_label(metric) for metric in metrics],
+        value_metrics=metrics,
+        title=title,
+        xlabel=xlabel,
+        ylabel=combined_ylabel_for_metrics(metrics, repeat),
+        repeat=repeat,
+    )
+
+
+def plot_grouped_series(
+    series_rows: list[list[PlotRow]],
+    series_labels: list[str],
+    value_metrics: list[str],
+    title: str,
+    xlabel: str | None,
+    ylabel: str,
+    repeat: int,
+) -> plt.Figure:
+    """One figure: grouped bars per category, one series per input row set."""
+    if len(series_rows) != len(series_labels):
+        raise ValueError("Each grouped series must have a matching legend label.")
+
+    k = len(series_labels)
+    n_cat = len(series_rows[0]) if series_rows else 0
+    assert all(len(sr) == n_cat for sr in series_rows), "Grouped series must share categories"
     tick_labels = [format_bar_label(series_rows[0][i]["label"]) for i in range(n_cat)]
-    show_sd = repeat > 1
+    any_variable = any(m in VARIABLE_METRICS for m in value_metrics)
+    show_sd = repeat > 1 and any_variable
 
     x = np.arange(n_cat, dtype=float)
-    width = 0.8 / k
+    width = 0.8 / max(k, 1)
     fig_w = min(11.0 + n_cat * k * 0.11, 24.0)
     fig_h = FIG_SIZE[1]
 
     with plt.rc_context(PLOT_RC):
         fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=FIG_DPI)
     fig.patch.set_facecolor(STYLE["figure_bg"])
-    ax.set_facecolor(STYLE["axes_bg_sd"] if show_sd else STYLE["axes_bg"])
+    ax.set_facecolor(STYLE["axes_bg"])
 
     fig.suptitle(
         title,
@@ -594,24 +594,18 @@ def plot_grouped_bars(
 
     ymax = 0.0
     capsize = max(3.0, ERROR_CAPSIZE - 0.5 * (k - 1))
+    label_stack_state: dict[int, list[float]] = {}
+    max_label_y = 0.0
 
-    for j, metric in enumerate(metrics):
+    for j, series_label in enumerate(series_labels):
         vals, colors, annotations, yerrs = _bar_series(series_rows[j], repeat)
         plot_colors = [
             SERIES_PALETTE[j % len(SERIES_PALETTE)] if c == STYLE["bar_ok"] else c
             for c in colors
         ]
-        edges: list[str] = []
-        for c in colors:
-            if show_sd:
-                edges.append(STYLE["bar_edge_sd"])
-            elif c == STYLE["bar_ok"]:
-                edges.append(SERIES_EDGE_NON_SD[j % len(SERIES_EDGE_NON_SD)])
-            else:
-                edges.append(STYLE["bar_bad_edge"])
-
+        metric_is_variable = j < len(value_metrics) and value_metrics[j] in VARIABLE_METRICS
         yerr_plot: list[float] | None = None
-        if repeat > 1:
+        if repeat > 1 and metric_is_variable:
             yerr_plot = [0.0 if e is None else float(e) for e in yerrs]
 
         for i, v in enumerate(vals):
@@ -624,10 +618,10 @@ def plot_grouped_bars(
             "height": vals,
             "width": width,
             "color": plot_colors,
-            "edgecolor": edges,
-            "linewidth": 0.9 if show_sd else 0.55,
+            "edgecolor": "none",
+            "linewidth": 0,
             "zorder": 2,
-            "label": metric_legend_label(metric),
+            "label": series_label,
         }
         if yerr_plot is not None:
             kw["yerr"] = yerr_plot
@@ -642,72 +636,81 @@ def plot_grouped_bars(
             }
         bar_container = ax.bar(**kw)
 
+        series_metric = value_metrics[j] if j < len(value_metrics) else ""
         patches = getattr(bar_container, "patches", None) or []
-        for i, ann in enumerate(annotations):
-            if ann and i < len(patches):
-                bar = patches[i]
-                ypos = float(bar.get_height())
-                if yerr_plot is not None:
-                    ypos += yerr_plot[i]
-                off = ymax * 0.02 if ymax > 0 else 0.02
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2,
-                    ypos + off,
-                    ann,
-                    ha="center",
-                    va="bottom",
-                    fontsize=8,
-                    color=STYLE["text_muted"],
-                    zorder=6,
+        for i in range(min(len(patches), len(vals))):
+            bar = patches[i]
+            ypos = float(bar.get_height())
+            if yerr_plot is not None:
+                ypos += yerr_plot[i]
+            off = ymax * 0.02 if ymax > 0 else 0.02
+            label_text = annotations[i] if annotations[i] else format_value_label(vals[i], series_metric)
+            needs_stacking = len(label_text) > 3 and bar.get_width() <= 0.45
+            same_height_count = 0
+            if needs_stacking:
+                same_height_count = sum(
+                    1
+                    for previous_top in label_stack_state.get(i, [])
+                    if abs(previous_top - ypos) <= off * 0.5
                 )
+            label_y = ypos + off * (1.0 + 1.5 * same_height_count)
+            label_stack_state.setdefault(i, []).append(ypos)
+            max_label_y = max(max_label_y, label_y)
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                label_y,
+                label_text,
+                ha="center",
+                va="bottom",
+                fontsize=7,
+                color="#000000",
+                zorder=6,
+                rotation=0,
+            )
 
     ax.set_xticks(x)
-    rot = 35 if tick_labels and max(len(str(t)) for t in tick_labels) > 12 else 0
-    ha = "right" if rot else "center"
+    rot = 35
+    ha = "right"
     ax.set_xticklabels(tick_labels, rotation=rot, ha=ha)
     if xlabel:
         ax.set_xlabel(xlabel, color=STYLE["text_axis"])
 
-    ax.set_ylabel(
-        combined_ylabel_for_metrics(metrics, repeat),
-        color=STYLE["text_axis"],
+    ax.set_ylabel(ylabel, color=STYLE["text_axis"])
+    _set_grouped_yaxis_formatter(ax, value_metrics)
+
+    ax.grid(
+        axis="y",
+        which="major",
+        linestyle="-",
+        linewidth=0.6,
+        alpha=0.55,
+        color=STYLE["grid"],
+        zorder=0,
     )
-    _set_grouped_yaxis_formatter(ax, metrics)
+    ax.minorticks_on()
+    ax.grid(
+        axis="y",
+        which="minor",
+        linestyle=":",
+        linewidth=0.4,
+        alpha=0.4,
+        color="#cccccc",
+        zorder=0,
+    )
+    ax.tick_params(axis="x", which="minor", bottom=False)
+    ax.set_axisbelow(True)
+    if max_label_y > 0:
+        ax.set_ylim(top=max(ax.get_ylim()[1], max_label_y + off * 2.0))
 
-    if show_sd:
-        ax.grid(False)
-    else:
-        ax.grid(
-            axis="y",
-            linestyle="-",
-            linewidth=0.6,
-            alpha=0.55,
-            color=STYLE["grid"],
-            zorder=0,
-        )
-        ax.set_axisbelow(True)
-
-    leg_edges = [
-        STYLE["bar_edge_sd"] if show_sd else SERIES_EDGE_NON_SD[j % len(SERIES_EDGE_NON_SD)]
-        for j in range(k)
-    ]
     legend_handles = [
         mpatches.Patch(
             facecolor=SERIES_PALETTE[j % len(SERIES_PALETTE)],
-            edgecolor=leg_edges[j],
-            linewidth=0.85 if show_sd else 0.55,
-            label=metric_legend_label(metrics[j]),
+            edgecolor="none",
+            linewidth=0,
+            label=series_labels[j],
         )
         for j in range(k)
     ]
-    legend_handles.append(
-        mpatches.Patch(
-            facecolor=STYLE["bar_bad"],
-            edgecolor=STYLE["bar_bad_edge"],
-            linewidth=0.85 if show_sd else 0.6,
-            label="Faltante / error",
-        )
-    )
     ncol = 2 if k >= 4 else 1
     ax.legend(
         handles=legend_handles,
@@ -723,20 +726,30 @@ def plot_grouped_bars(
         ncol=ncol,
     )
 
-    if show_sd:
-        for spine in ax.spines.values():
-            spine.set_visible(True)
-            spine.set_color(STYLE["spine_sd"])
-            spine.set_linewidth(0.9)
-        ax.tick_params(axis="both", colors=STYLE["spine_sd"], width=0.8, length=4)
-    else:
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
+    for spine in ax.spines.values():
+        spine.set_visible(True)
 
     bottom_margin = 0.22 if rot else 0.14
-    fig.subplots_adjust(left=0.09, right=0.72 if k >= 4 else 0.76, top=0.88, bottom=bottom_margin)
+    right_margin = 0.72 if k >= 4 else 0.76
+    fig.subplots_adjust(left=0.09, right=right_margin, top=0.88, bottom=bottom_margin)
 
     return fig
+
+
+def collect_series_rows_algorithm_comparison_mode(
+    level_path: Path,
+    algorithms: list[str],
+    heuristics: list[str],
+    timeout: int | None,
+    repeat: int,
+) -> list[tuple[str, list[RunRow]]]:
+    return [
+        (
+            algo,
+            collect_rows_heuristic_mode(level_path, algo, heuristics, timeout, repeat),
+        )
+        for algo in algorithms
+    ]
 
 
 def _safe_filename_part(s: str) -> str:
@@ -744,22 +757,30 @@ def _safe_filename_part(s: str) -> str:
     return s.strip("_") or "out"
 
 
+def build_heuristics_tag(heuristics_list: list[str] | None) -> str:
+    if heuristics_list is not None and len(heuristics_list) < len(HEURISTICS):
+        head = "_".join(heuristics_list[:5])
+        if len(heuristics_list) > 5:
+            head += f"_plus{len(heuristics_list) - 5}"
+        return f"subset_{head}"
+    return "all_heuristics"
+
+
 def build_scenario_slug(
-    onlyheuristics: bool,
+    mode: str,
     algorithms: list[str] | None,
     heuristic_fixed: str,
     heuristics_list: list[str] | None,
 ) -> str:
-    if onlyheuristics:
+    if mode == "onlyheuristics":
         algo = (algorithms or [""])[0]
-        if heuristics_list is not None and len(heuristics_list) < len(HEURISTICS):
-            head = "_".join(heuristics_list[:5])
-            if len(heuristics_list) > 5:
-                head += f"_plus{len(heuristics_list) - 5}"
-            htag = f"subset_{head}"
-        else:
-            htag = "all_heuristics"
+        htag = build_heuristics_tag(heuristics_list)
         raw = f"{algo}_vs_{htag}"
+        raw = raw[:180] if len(raw) > 180 else raw
+        return _safe_filename_part(raw)
+    if mode == "compare_algorithms_by_heuristic":
+        alg_tag = "_vs_".join(algorithms or list(HEURISTIC_ONLY_ALGORITHMS))
+        raw = f"{alg_tag}_vs_{build_heuristics_tag(heuristics_list)}"
         raw = raw[:180] if len(raw) > 180 else raw
         return _safe_filename_part(raw)
     h = _safe_filename_part(heuristic_fixed)
@@ -790,6 +811,11 @@ def default_grouped_basename(
 
 
 def validate_cli(ns: argparse.Namespace) -> None:
+    if ns.onlyheuristics and ns.compare_algorithms_by_heuristic:
+        raise SystemExit(
+            "Choose only one of --onlyheuristics or --compare-algorithms-by-heuristic."
+        )
+
     if ns.onlyheuristics:
         algs = ns.algorithms or []
         if len(algs) != 1:
@@ -800,9 +826,22 @@ def validate_cli(ns: argparse.Namespace) -> None:
             raise SystemExit(
                 f"With --onlyheuristics, --algorithm must be astar or greedy (got: {algs[0]})."
             )
+    elif ns.compare_algorithms_by_heuristic:
+        algs = list(ns.algorithms) if ns.algorithms else list(HEURISTIC_ONLY_ALGORITHMS)
+        if not algs:
+            raise SystemExit(
+                "With --compare-algorithms-by-heuristic, --algorithm must include at least one of: greedy, astar."
+            )
+        bad = [a for a in algs if a not in HEURISTIC_ONLY_ALGORITHMS]
+        if bad:
+            invalid = ", ".join(bad)
+            raise SystemExit(
+                "With --compare-algorithms-by-heuristic, --algorithm must use only greedy and/or astar "
+                f"(got: {invalid})."
+            )
     elif ns.heuristics is not None:
         raise SystemExit(
-            "Use --heuristics only with --onlyheuristics; "
+            "Use --heuristics only with --onlyheuristics or --compare-algorithms-by-heuristic; "
             "in algorithm mode use --heuristic for greedy/astar."
         )
 
@@ -826,8 +865,41 @@ class OutputPlan:
     save_file: Path | None = None
 
 
-def resolve_output(out_raw: str | None, multi_metric: bool) -> OutputPlan:
+def resolve_level_paths(root: Path, level_raw: str | None, all_levels: bool) -> list[Path]:
+    if all_levels:
+        levels_dir = root / "microban_levels"
+        level_files = sorted(
+            levels_dir.glob("level*.txt"),
+            key=lambda p: (
+                int(re.search(r"(\d+)$", p.stem).group(1))
+                if re.search(r"(\d+)$", p.stem)
+                else sys.maxsize,
+                p.stem,
+            ),
+        )
+        if not level_files:
+            raise SystemExit(f"No level files found in {levels_dir}")
+        return level_files
+
+    if level_raw is None:
+        raise SystemExit("Pass --level PATH or --all-levels.")
+
+    level_path = Path(level_raw)
+    if not level_path.is_absolute():
+        level_path = (root / level_path).resolve()
+    if not level_path.is_file():
+        raise SystemExit(f"Level file not found: {level_path}")
+    return [level_path]
+
+
+def resolve_output(
+    out_raw: str | None,
+    multi_metric: bool,
+    multi_level: bool,
+) -> OutputPlan:
     if out_raw is None:
+        if multi_level:
+            raise SystemExit("With --all-levels, pass --out DIR to save files.")
         if multi_metric:
             raise SystemExit(
                 "With multiple metrics (default: all), pass --out DIR to save files, "
@@ -843,6 +915,8 @@ def resolve_output(out_raw: str | None, multi_metric: bool) -> OutputPlan:
         out_path.mkdir(parents=True, exist_ok=True)
         return OutputPlan(interactive=False, batch_dir=out_path)
 
+    if multi_level:
+        raise SystemExit("With --all-levels, --out must be a directory.")
     if multi_metric:
         raise SystemExit("A single output file requires exactly one metric in --yaxis.")
     out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -856,10 +930,209 @@ def save_figure(fig: plt.Figure, path: Path, fmt: str | None = None) -> None:
     fig.savefig(path, **kw)
 
 
+def emit_figure(
+    fig: plt.Figure,
+    out: OutputPlan,
+    level_stem: str,
+    scenario: str,
+    save_fmt: str,
+    *,
+    grouped: bool,
+    metrics: list[str],
+    metric: str | None = None,
+) -> Path | None:
+    if out.interactive:
+        plt.show()
+        plt.close(fig)
+        return None
+
+    if out.save_file is not None:
+        if grouped:
+            save_path = out.save_file.parent / default_grouped_basename(
+                level_stem, scenario, metrics, save_fmt
+            )
+            save_figure(fig, save_path, save_fmt)
+        else:
+            save_path = out.save_file
+            save_figure(fig, save_path, save_fmt)
+        plt.close(fig)
+        return save_path
+
+    if out.batch_dir is None:
+        plt.close(fig)
+        return None
+
+    if grouped:
+        save_path = out.batch_dir / default_grouped_basename(
+            level_stem, scenario, metrics, "png"
+        )
+        save_figure(fig, save_path, "png")
+    else:
+        if metric is None:
+            raise ValueError("metric is required when saving a single-metric figure")
+        save_path = out.batch_dir / default_output_basename(
+            level_stem, scenario, metric, "png"
+        )
+        save_figure(fig, save_path, "png")
+    plt.close(fig)
+    return save_path
+
+
+def render_level_plots(
+    *,
+    level_path: Path,
+    mode: str,
+    algorithms: list[str],
+    heuristics_list: list[str] | None,
+    heuristic_fixed: str,
+    metrics: list[str],
+    repeat: int,
+    timeout: int | None,
+    group_yaxis: bool,
+    out: OutputPlan,
+    save_fmt: str,
+) -> list[Path]:
+    scenario = build_scenario_slug(mode, algorithms, heuristic_fixed, heuristics_list)
+    xlabel = "Algoritmo"
+    title_base = f"{level_path.name} - algoritmos (h fija={heuristic_fixed})"
+    written_paths: list[Path] = []
+
+    if mode == "onlyheuristics":
+        algo = algorithms[0]
+        heur_list = heuristics_list or sorted(HEURISTICS.keys())
+        base_rows = collect_rows_heuristic_mode(
+            level_path, algo, heur_list, timeout, repeat
+        )
+        title_base = f"{level_path.name} - {algorithm_legend_label(algo)} vs heuristicas"
+        xlabel = "Heuristica"
+    elif mode == "compare_algorithms_by_heuristic":
+        heur_list = heuristics_list or sorted(HEURISTICS.keys())
+        series_run_rows = collect_series_rows_algorithm_comparison_mode(
+            level_path, algorithms, heur_list, timeout, repeat
+        )
+        alg_tag = " vs ".join(algorithm_legend_label(algorithm) for algorithm in algorithms)
+        title_base = f"{level_path.name} - heuristicas ({alg_tag})"
+        xlabel = "Heuristica"
+    else:
+        base_rows = collect_rows_algorithm_mode(
+            level_path, algorithms, heuristic_fixed, timeout, repeat
+        )
+
+    if repeat > 1:
+        title_base = f"{title_base} (n = {repeat})"
+
+    if mode == "compare_algorithms_by_heuristic":
+        if group_yaxis:
+            series_rows: list[list[PlotRow]] = []
+            series_labels: list[str] = []
+            value_metrics: list[str] = []
+            for metric_name in metrics:
+                for algorithm, run_rows in series_run_rows:
+                    series_rows.append(attach_values(run_rows, metric_name, repeat))
+                    series_labels.append(
+                        f"{metric_legend_label(metric_name)} - {algorithm_legend_label(algorithm)}"
+                    )
+                    value_metrics.append(metric_name)
+
+            fig = plot_grouped_series(
+                series_rows=series_rows,
+                series_labels=series_labels,
+                value_metrics=value_metrics,
+                title=title_base,
+                xlabel=xlabel,
+                ylabel=combined_ylabel_for_metrics(metrics, repeat),
+                repeat=repeat,
+            )
+            save_path = emit_figure(
+                fig,
+                out,
+                level_path.stem,
+                scenario,
+                save_fmt,
+                grouped=True,
+                metrics=metrics,
+            )
+            if save_path is not None:
+                written_paths.append(save_path)
+            return written_paths
+
+        for metric_name in metrics:
+            series_rows = [
+                attach_values(run_rows, metric_name, repeat)
+                for _algorithm, run_rows in series_run_rows
+            ]
+            series_labels = [
+                algorithm_legend_label(algorithm)
+                for algorithm, _run_rows in series_run_rows
+            ]
+            fig = plot_grouped_series(
+                series_rows=series_rows,
+                series_labels=series_labels,
+                value_metrics=[metric_name] * max(len(series_rows), 1),
+                title=title_base,
+                xlabel=xlabel,
+                ylabel=single_metric_ylabel(metric_name, repeat),
+                repeat=repeat,
+            )
+            save_path = emit_figure(
+                fig,
+                out,
+                level_path.stem,
+                scenario,
+                save_fmt,
+                grouped=False,
+                metrics=[metric_name],
+                metric=metric_name,
+            )
+            if save_path is not None:
+                written_paths.append(save_path)
+        return written_paths
+
+    if group_yaxis:
+        series_rows = [attach_values(base_rows, metric_name, repeat) for metric_name in metrics]
+        fig = plot_grouped_bars(series_rows, metrics, title_base, xlabel, repeat)
+        save_path = emit_figure(
+            fig,
+            out,
+            level_path.stem,
+            scenario,
+            save_fmt,
+            grouped=True,
+            metrics=metrics,
+        )
+        if save_path is not None:
+            written_paths.append(save_path)
+        return written_paths
+
+    for metric_name in metrics:
+        rows = attach_values(base_rows, metric_name, repeat)
+        fig = plot_bars(
+            rows,
+            title_base,
+            metric_name,
+            xlabel,
+            repeat,
+        )
+        save_path = emit_figure(
+            fig,
+            out,
+            level_path.stem,
+            scenario,
+            save_fmt,
+            grouped=False,
+            metrics=[metric_name],
+            metric=metric_name,
+        )
+        if save_path is not None:
+            written_paths.append(save_path)
+
+    return written_paths
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Bar charts for one Sokoban level. One image per metric (default), or grouped "
-        "bars with --group-yaxis. Optional repeated runs with std.",
+        description="Bar charts for one Sokoban level or all Microban levels. One image per metric "
+        "(default), or grouped bars with --group-yaxis. Optional repeated runs with std.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -869,14 +1142,20 @@ Examples:
       (each bar: mean ± sample std over 5 runs)
   %(prog)s --level levels/level1.txt --onlyheuristics --algorithm astar \\
       --group-yaxis --yaxis processing_time heuristic_time -o plots/
+  %(prog)s --all-levels --compare-algorithms-by-heuristic -o plots/
 """,
     )
-    parser.add_argument(
+    level_group = parser.add_mutually_exclusive_group(required=True)
+    level_group.add_argument(
         "--level",
         type=str,
-        required=True,
         metavar="PATH",
         help="Level .txt path (e.g. levels/level1.txt)",
+    )
+    level_group.add_argument(
+        "--all-levels",
+        action="store_true",
+        help="Process every level*.txt under microban_levels/ (requires --out DIR)",
     )
     parser.add_argument(
         "--onlyheuristics",
@@ -884,12 +1163,18 @@ Examples:
         help="X-axis = heuristics; --algorithm must be astar or greedy (default: compare all algorithms)",
     )
     parser.add_argument(
+        "--compare-algorithms-by-heuristic",
+        action="store_true",
+        help="X-axis = heuristics; compare greedy and/or astar side by side for each heuristic",
+    )
+    parser.add_argument(
         "--algorithm",
         nargs="*",
         default=None,
         dest="algorithms",
         metavar="NAME",
-        help="Algorithms to plot (default: all). With --onlyheuristics: exactly astar or greedy",
+        help="Algorithms to plot (default: all, or greedy astar with --compare-algorithms-by-heuristic). "
+        "With --onlyheuristics: exactly astar or greedy",
     )
     parser.add_argument(
         "--heuristic",
@@ -904,7 +1189,8 @@ Examples:
         default=None,
         metavar="H",
         choices=sorted(HEURISTICS.keys()),
-        help="Heuristics to compare with --onlyheuristics (default: all)",
+        help="Heuristics to compare with --onlyheuristics or --compare-algorithms-by-heuristic "
+        "(default: all)",
     )
     parser.add_argument(
         "--yaxis",
@@ -949,53 +1235,39 @@ Examples:
         raise SystemExit("--runs must be >= 1")
 
     root = Path(__file__).resolve().parent.parent
-    level_path = Path(ns.level)
-    if not level_path.is_absolute():
-        level_path = (root / level_path).resolve()
-    if not level_path.is_file():
-        raise SystemExit(f"Level file not found: {level_path}")
-
     validate_cli(ns)
     if ns.group_yaxis and (not ns.yaxis or len(ns.yaxis) < 2):
         raise SystemExit(
             "--group-yaxis requires explicit --yaxis with at least two metrics "
             "(e.g. --yaxis processing_time heuristic_time)."
         )
+    level_paths = resolve_level_paths(root, ns.level, ns.all_levels)
     metrics = resolve_metrics(ns.yaxis)
     multi = len(metrics) > 1 and not ns.group_yaxis
-    out = resolve_output(ns.out, multi)
+    out = resolve_output(ns.out, multi, len(level_paths) > 1)
 
     if not out.interactive:
         plt.ioff()
 
     repeat = ns.runs
+    heur_list = list(ns.heuristics) if ns.heuristics is not None else None
 
     if ns.onlyheuristics:
-        algo = ns.algorithms[0]
-        heur_list = (
-            list(ns.heuristics) if ns.heuristics is not None else sorted(HEURISTICS.keys())
+        mode = "onlyheuristics"
+        algorithms = [ns.algorithms[0]]
+    elif ns.compare_algorithms_by_heuristic:
+        mode = "compare_algorithms_by_heuristic"
+        algorithms = (
+            list(ns.algorithms)
+            if ns.algorithms
+            else list(HEURISTIC_ONLY_ALGORITHMS)
         )
-        base_rows = collect_rows_heuristic_mode(
-            level_path, algo, heur_list, ns.timeout, repeat
-        )
-        scenario = build_scenario_slug(True, ns.algorithms, ns.heuristic, ns.heuristics)
-        title_base = f"{level_path.name} — {algo.upper()} vs heurísticas"
-        if repeat > 1:
-            title_base = f"{title_base} (n = {repeat})"
-        xlabel = "Heurística"
     else:
-        algs = list(ns.algorithms) if ns.algorithms else list(ALGORITHMS.keys())
-        for a in algs:
-            if a not in ALGORITHMS:
-                raise SystemExit(f"Unknown algorithm: {a}")
-        base_rows = collect_rows_algorithm_mode(
-            level_path, algs, ns.heuristic, ns.timeout, repeat
-        )
-        scenario = build_scenario_slug(False, ns.algorithms, ns.heuristic, None)
-        title_base = f"{level_path.name} — algoritmos (h fija={ns.heuristic})"
-        if repeat > 1:
-            title_base = f"{title_base} (n = {repeat})"
-        xlabel = "Algoritmo"
+        mode = "algorithm"
+        algorithms = list(ns.algorithms) if ns.algorithms else list(ALGORITHMS.keys())
+        for algorithm in algorithms:
+            if algorithm not in ALGORITHMS:
+                raise SystemExit(f"Unknown algorithm: {algorithm}")
 
     save_fmt = out.save_file.suffix[1:].lower() if out.save_file else "png"
     if out.save_file and out.save_file.suffix.lower() not in IMAGE_SUFFIXES:
@@ -1003,45 +1275,28 @@ Examples:
             f"Unsupported image type {out.save_file.suffix!r}; use one of {sorted(IMAGE_SUFFIXES)}"
         )
 
-    if ns.group_yaxis:
-        series_rows = [attach_values(base_rows, m, repeat) for m in metrics]
-        fig = plot_grouped_bars(series_rows, metrics, title_base, xlabel, repeat)
-        if out.interactive:
-            plt.show()
-            plt.close(fig)
-        elif out.save_file is not None:
-            auto_name = default_grouped_basename(
-                level_path.stem, scenario, metrics, save_fmt
+    written_paths: list[Path] = []
+    for level_path in level_paths:
+        written_paths.extend(
+            render_level_plots(
+                level_path=level_path,
+                mode=mode,
+                algorithms=algorithms,
+                heuristics_list=heur_list,
+                heuristic_fixed=ns.heuristic,
+                metrics=metrics,
+                repeat=repeat,
+                timeout=ns.timeout,
+                group_yaxis=ns.group_yaxis,
+                out=out,
+                save_fmt=save_fmt,
             )
-            save_path = out.save_file.parent / auto_name
-            save_figure(fig, save_path, save_fmt)
-            print(f"Generado: {save_path}")
-            plt.close(fig)
-        elif out.batch_dir is not None:
-            fname = default_grouped_basename(level_path.stem, scenario, metrics, "png")
-            save_path = out.batch_dir / fname
-            save_figure(fig, save_path, "png")
-            print(f"Generado: {save_path}")
-            plt.close(fig)
-    else:
-        for yaxis in metrics:
-            rows = attach_values(base_rows, yaxis, repeat)
-            subtitle = yaxis_label(yaxis)
-            fig = plot_bars(rows, title_base, subtitle, yaxis, xlabel, repeat)
+        )
 
-            if out.interactive:
-                plt.show()
-                plt.close(fig)
-            elif out.save_file is not None:
-                save_figure(fig, out.save_file, save_fmt)
-                plt.close(fig)
-            elif out.batch_dir is not None:
-                fname = default_output_basename(level_path.stem, scenario, yaxis, "png")
-                save_figure(fig, out.batch_dir / fname, "png")
-                plt.close(fig)
-
-    if out.batch_dir is not None and not out.interactive and not ns.group_yaxis:
-        print(f"Generadas {len(metrics)} figura(s) en {out.batch_dir}")
+    if out.save_file is not None and written_paths:
+        print(f"Generado: {written_paths[0]}")
+    elif out.batch_dir is not None and not out.interactive:
+        print(f"Generadas {len(written_paths)} figura(s) en {out.batch_dir}")
 
 
 if __name__ == "__main__":
