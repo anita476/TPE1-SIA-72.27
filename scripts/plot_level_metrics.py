@@ -428,14 +428,6 @@ def plot_bars(
         fig.patch.set_facecolor(STYLE["figure_bg"])
         ax.set_facecolor(STYLE["axes_bg"])
 
-        fig.suptitle(
-            title,
-            fontsize=13,
-            fontweight="600",
-            color=STYLE["text_title"],
-            y=0.97,
-        )
-
         n = len(labels)
         if n == 0:
             ax.text(
@@ -447,6 +439,14 @@ def plot_bars(
                 transform=ax.transAxes,
                 color=STYLE["text_axis"],
             )
+            ax.set_title(
+                title,
+                fontsize=13,
+                fontweight="600",
+                color=STYLE["text_title"],
+                pad=14,
+            )
+            fig.subplots_adjust(left=0.09, right=0.9, top=0.88, bottom=0.14)
         else:
             x = range(n)
             bar_width = 0.72 if n <= 8 else max(0.35, 0.9 - 0.06 * n)
@@ -540,6 +540,13 @@ def plot_bars(
                 spine.set_visible(True)
                 spine.set_color(STYLE["text_axis"])
 
+            ax.set_title(
+                title,
+                fontsize=13,
+                fontweight="600",
+                color=STYLE["text_title"],
+                pad=14,
+            )
             bottom_margin = 0.22 if rot else 0.14
             fig.subplots_adjust(left=0.09, right=0.76, top=0.88, bottom=bottom_margin)
 
@@ -594,14 +601,6 @@ def plot_grouped_series(
     fig.patch.set_facecolor(STYLE["figure_bg"])
     ax.set_facecolor(STYLE["axes_bg"])
 
-    fig.suptitle(
-        title,
-        fontsize=13,
-        fontweight="600",
-        color=STYLE["text_title"],
-        y=0.97,
-    )
-
     if n_cat == 0:
         ax.text(
             0.5,
@@ -612,6 +611,14 @@ def plot_grouped_series(
             transform=ax.transAxes,
             color=STYLE["text_axis"],
         )
+        ax.set_title(
+            title,
+            fontsize=13,
+            fontweight="600",
+            color=STYLE["text_title"],
+            pad=14,
+        )
+        fig.subplots_adjust(left=0.09, right=0.9, top=0.88, bottom=0.14)
         return fig
 
     ymax = 0.0
@@ -754,6 +761,13 @@ def plot_grouped_series(
         spine.set_visible(True)
         spine.set_color(STYLE["text_axis"])
 
+    ax.set_title(
+        title,
+        fontsize=13,
+        fontweight="600",
+        color=STYLE["text_title"],
+        pad=14,
+    )
     bottom_margin = 0.22 if rot else 0.14
     right_margin = 0.72 if k >= 4 else 0.76
     fig.subplots_adjust(left=0.09, right=right_margin, top=0.88, bottom=bottom_margin)
