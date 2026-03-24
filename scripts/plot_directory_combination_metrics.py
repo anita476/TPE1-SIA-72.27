@@ -1,7 +1,7 @@
 """
 Plot per-level expanded nodes, deadlocks, and ratio-based metrics.
 
-Runs each .txt level with either greedy or astar, forcing the deadlock heuristic.
+Runs each .txt level with either greedy or astar, forcing the combination heuristic.
 Produces three separate figures:
   - expanded nodes per level
   - deadlock positions per level
@@ -215,7 +215,7 @@ def main() -> None:
     levels_dir = resolve_levels_dir(ns.levels_dir)
     level_files = find_level_files(levels_dir)
     print(f"Found {len(level_files)} level(s) in {levels_dir}")
-    print(f"Running {ns.algorithm} with heuristic=deadlock")
+    print(f"Running {ns.algorithm} with heuristic=combination")
 
     labels, expanded, deadlocks, frontier, errors = collect_metrics(
         level_files=level_files,
