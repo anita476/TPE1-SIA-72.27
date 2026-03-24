@@ -208,8 +208,8 @@ def main() -> None:
     parser.add_argument(
         "--heuristic",
         default="deadlock",
-        choices=("deadlock", "combination"),
-        help="Heuristic to use (deadlock or combination). Default: deadlock.",
+        choices=("deadlock", "combination", "emm"),
+        help="Heuristic to use. Default: deadlock.",
     )
     parser.add_argument(
         "--timeout",
