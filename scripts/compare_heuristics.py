@@ -29,10 +29,10 @@ def format_cell(result, error_msg: str | None) -> str:
         return f"ERR ({error_msg})"
     if result.success:
         return (
-            f"OK costo={result.cost} pushes={result.boxes_displaced} "
-            f"nodos expandidos={result.expanded_nodes} tiempo_total={result.processing_time:.2f}s "
-            f"tiempo_heurísticas={result.heuristic_time:.2f}s "
-            f"memoria={result.memory_kb:.0f}KB"
+            f"OK cost={result.cost} pushes={result.boxes_displaced} "
+            f"expanded_nodes={result.expanded_nodes} total_time={result.processing_time:.2f}s "
+            f"heuristic_time={result.heuristic_time:.2f}s "
+            f"memory={result.memory_kb:.0f}KB"
         )
     return "FAILED"
 

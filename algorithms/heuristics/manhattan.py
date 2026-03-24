@@ -9,6 +9,7 @@ def manhattan_heuristic(state: SokobanState) -> int:
         total += min(manhattan_distance(box, goal) for goal in state.goals)
     return total
 
+
 def manhattan_heuristics_with_greedy_asignment(state: SokobanState) -> int:
     """Sum of minimum Manhattan distances from each box to any goal, using a greedy assignment."""
     total = 0
