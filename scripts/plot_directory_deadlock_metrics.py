@@ -1,9 +1,10 @@
 """
 Plot per-level expanded nodes, deadlocks, and ratio-based metrics.
 
-Runs each .txt level with either greedy or astar, forcing the deadlock heuristic.
-Produces three separate figures:
+Runs each .txt level with either greedy or astar, using deadlock or combination heuristic.
+Produces separate figures:
   - expanded nodes per level
+  - frontier nodes per level
   - deadlock positions per level
   - expanded_nodes / deadlock_count per level
   - frontier / (expanded + frontier) per level
@@ -77,7 +78,7 @@ def resolve_out_path(out_raw: str | None) -> Path | None:
 
 
 def collect_metrics(
-    level_files: list[Path], algorithm: str, timeout: int | None
+    level_files: list[Path], algorithm: str, heuristic: str, timeout: int | None
 ) -> tuple[list[str], list[int], list[int], list[int], list[str]]:
     labels: list[str] = []
     expanded_nodes: list[int] = []
@@ -96,7 +97,7 @@ def collect_metrics(
             algorithm,
             timeout,
             verbose=False,
-            heuristic_name="combination",
+            heuristic_name=heuristic,
         )
 
         labels.append(level_name)
@@ -187,8 +188,8 @@ def _plot_single_metric(
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Run all levels in a directory with greedy/astar + combination heuristic, "
-            "then generate separate images for expanded nodes, deadlocks, "
+            "Run all levels in a directory with greedy/astar + deadlock/combination heuristic, "
+            "then generate separate images for expanded nodes, frontier nodes, deadlocks, "
             "expanded/deadlock, and frontier/(expanded+frontier) per level."
         )
     )
@@ -205,6 +206,12 @@ def main() -> None:
         help="Search algorithm (only greedy or astar).",
     )
     parser.add_argument(
+        "--heuristic",
+        default="deadlock",
+        choices=("deadlock", "combination"),
+        help="Heuristic to use (deadlock or combination). Default: deadlock.",
+    )
+    parser.add_argument(
         "--timeout",
         type=int,
         default=None,
@@ -219,7 +226,7 @@ def main() -> None:
         metavar="PATH",
         help=(
             "Optional output base path or directory. If omitted, shows interactive plots. "
-            "When provided, four files are written."
+            "When provided, five files are written."
         ),
     )
     ns = parser.parse_args()
@@ -227,11 +234,12 @@ def main() -> None:
     levels_dir = resolve_levels_dir(ns.levels_dir)
     level_files = find_level_files(levels_dir)
     print(f"Found {len(level_files)} level(s) in {levels_dir}")
-    print(f"Running {ns.algorithm} with heuristic=deadlock")
+    print(f"Running {ns.algorithm} with heuristic={ns.heuristic}")
 
     labels, expanded, deadlocks, frontier, errors = collect_metrics(
         level_files=level_files,
         algorithm=ns.algorithm,
+        heuristic=ns.heuristic,
         timeout=ns.timeout,
     )
 
@@ -246,7 +254,9 @@ def main() -> None:
         for expanded_nodes, frontier_nodes in zip(expanded, frontier)
     ]
 
-    title_base = f"{levels_dir.name} — {ns.algorithm.upper()} + heurística deadlock"
+    title_base = (
+        f"{levels_dir.name} — {ns.algorithm.upper()} + {ns.heuristic} heuristic"
+    )
     fig_expanded = _plot_single_metric(
         labels=labels,
         values=[float(v) for v in expanded],
@@ -258,6 +268,18 @@ def main() -> None:
         y_min=None,
         y_max=None,
         title=f"{title_base} — Nodos expandidos",
+    )
+    fig_frontier = _plot_single_metric(
+        labels=labels,
+        values=[float(v) for v in frontier],
+        ylabel="Frontier nodes",
+        color="#16a085",
+        edgecolor="#117864",
+        integer_yaxis=True,
+        log_yaxis=True,
+        y_min=None,
+        y_max=None,
+        title=f"{title_base} — Frontier nodes",
     )
     fig_deadlocks = _plot_single_metric(
         labels=labels,
@@ -304,6 +326,7 @@ def main() -> None:
             save_fmt = out_path.suffix[1:].lower()
             base = out_path.with_suffix("")
             out_expanded = base.with_name(f"{base.name}__expanded_nodes").with_suffix(out_path.suffix)
+            out_frontier = base.with_name(f"{base.name}__frontier_nodes").with_suffix(out_path.suffix)
             out_deadlocks = base.with_name(f"{base.name}__deadlock_count").with_suffix(out_path.suffix)
             out_ratio = base.with_name(f"{base.name}__expanded_over_deadlock").with_suffix(out_path.suffix)
             out_frontier_ratio = base.with_name(
@@ -313,12 +336,14 @@ def main() -> None:
             # Fallback, should not happen because resolve_out_path normalizes dirs to base file name.
             save_fmt = "png"
             out_expanded = out_path.parent / f"{out_path.name}__expanded_nodes.png"
+            out_frontier = out_path.parent / f"{out_path.name}__frontier_nodes.png"
             out_deadlocks = out_path.parent / f"{out_path.name}__deadlock_count.png"
             out_ratio = out_path.parent / f"{out_path.name}__expanded_over_deadlock.png"
             out_frontier_ratio = out_path.parent / f"{out_path.name}__frontier_over_total.png"
 
         for fig, path in (
             (fig_expanded, out_expanded),
+            (fig_frontier, out_frontier),
             (fig_deadlocks, out_deadlocks),
             (fig_ratio, out_ratio),
             (fig_frontier_ratio, out_frontier_ratio),
@@ -333,6 +358,7 @@ def main() -> None:
             print(f"Generado: {path}")
 
     plt.close(fig_expanded)
+    plt.close(fig_frontier)
     plt.close(fig_deadlocks)
     plt.close(fig_ratio)
     plt.close(fig_frontier_ratio)
