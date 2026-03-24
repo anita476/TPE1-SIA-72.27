@@ -1028,16 +1028,16 @@ def render_level_plots(
         base_rows = collect_rows_heuristic_mode(
             level_path, algo, heur_list, timeout, repeat
         )
-        title_base = f"{level_path.name} - {algorithm_legend_label(algo)} vs heuristicas"
-        xlabel = "Heuristica"
+        title_base = f"{level_path.name} - {algorithm_legend_label(algo)} vs heurísticas"
+        xlabel = "Heurística"
     elif mode == "compare_algorithms_by_heuristic":
         heur_list = heuristics_list or sorted(HEURISTICS.keys())
         series_run_rows = collect_series_rows_algorithm_comparison_mode(
             level_path, algorithms, heur_list, timeout, repeat
         )
         alg_tag = " vs ".join(algorithm_legend_label(algorithm) for algorithm in algorithms)
-        title_base = f"{level_path.name} - heuristicas ({alg_tag})"
-        xlabel = "Heuristica"
+        title_base = f"{level_path.name} - heurísticas ({alg_tag})"
+        xlabel = "Heurística"
     else:
         base_rows = collect_rows_algorithm_mode(
             level_path, algorithms, heuristic_fixed, timeout, repeat
