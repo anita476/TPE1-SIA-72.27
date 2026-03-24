@@ -79,8 +79,8 @@ ERROR_LINEWIDTH = 1.15
 ERROR_CAPTHICK = 1.15
 
 STYLE = {
-    "figure_bg": "#ffffff",
-    "axes_bg": "#ffffff",
+    "figure_bg": "#fff5ec",
+    "axes_bg": "#fff5ec",
     # Slightly grey plot area when showing SD (like SPSS-style charts).
     "axes_bg_sd": "#e8e8e8",
     "bar_ok": "#4a90d9",
@@ -89,12 +89,12 @@ STYLE = {
     "bar_bad_edge": "#95a5a6",
     "bar_edge_sd": "#000000",
     "grid": "#e8ecf0",
-    "text_title": "#1e2d3d",
-    "text_axis": "#5b6b7a",
-    "text_muted": "#8b9bab",
+    "text_title": "#343434",
+    "text_axis": "#343434",
+    "text_muted": "#343434",
     "err_bar": "#e67e22",
     "err_bar_sd": "#000000",
-    "legend_frame": "#ffffff",
+    "legend_frame": "#fff5ec",
     "spine_sd": "#000000",
 }
 
@@ -107,7 +107,7 @@ PLOT_RC = {
     "ytick.labelsize": 9,
     "axes.spines.top": False,
     "axes.spines.right": False,
-    "axes.edgecolor": "#d0d8e0",
+    "axes.edgecolor": "#343434",
     "axes.linewidth": 0.8,
 }
 
@@ -150,14 +150,14 @@ def metric_value(result: SearchResult | None, yaxis: str) -> float | None:
 
 def yaxis_label(yaxis: str) -> str:
     return {
-        "processing_time": "Processing time (s)",
-        "heuristic_time": "Heuristic evaluation time (s)",
-        "memory": "Peak memory (KB)",
-        "frontier_nodes": "Frontier nodes",
-        "expanded_nodes": "Expanded nodes",
-        "cost": "Solution cost (path length)",
-        "boxes_displaced": "Box pushes",
-        "heuristic_time_ratio": "Heuristic time / total time",
+        "processing_time": "Tiempo de procesamiento (s)",
+        "heuristic_time": "Tiempo de evaluación heurística (s)",
+        "memory": "Memoria pico (KB)",
+        "frontier_nodes": "Nodos frontera",
+        "expanded_nodes": "Nodos expandidos",
+        "cost": "Costo de solución (longitud del camino)",
+        "boxes_displaced": "Empujes de cajas",
+        "heuristic_time_ratio": "Tiempo heurística / tiempo total",
     }.get(yaxis, yaxis)
 
 
@@ -174,26 +174,26 @@ def format_bar_label(label: str) -> str:
 
 def metric_legend_label(metric: str) -> str:
     return {
-        "processing_time": "Total time",
-        "heuristic_time": "Heuristic time",
-        "memory": "Memory (KB)",
-        "frontier_nodes": "Frontier nodes",
-        "expanded_nodes": "Expanded nodes",
-        "cost": "Cost",
-        "boxes_displaced": "Box pushes",
-        "heuristic_time_ratio": "h-time / total",
+        "processing_time": "Tiempo total",
+        "heuristic_time": "Tiempo heurística",
+        "memory": "Memoria (KB)",
+        "frontier_nodes": "Nodos frontera",
+        "expanded_nodes": "Nodos expandidos",
+        "cost": "Costo",
+        "boxes_displaced": "Empujes de cajas",
+        "heuristic_time_ratio": "t. heurística / total",
     }.get(metric, metric)
 
 
 def combined_ylabel_for_metrics(metrics: list[str], repeat: int) -> str:
     if TIME_METRICS.issuperset(metrics):
-        base = "Time (s)"
+        base = "Tiempo (s)"
     elif all(m in INTEGER_YAXIS_METRICS for m in metrics):
-        base = "Value"
+        base = "Valor"
     else:
-        base = "Value"
+        base = "Valor"
     if repeat > 1:
-        base = f"{base} (mean)"
+        base = f"{base} (promedio)"
     return base
 
 
@@ -432,7 +432,7 @@ def plot_bars(
 
         n = len(labels)
         if n == 0:
-            ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
+            ax.text(0.5, 0.5, "Sin datos", ha="center", va="center", transform=ax.transAxes)
         else:
             x = range(n)
             bar_width = 0.72 if n <= 8 else max(0.35, 0.9 - 0.06 * n)
@@ -489,13 +489,13 @@ def plot_bars(
                     facecolor=STYLE["bar_ok"],
                     edgecolor=leg_ok_edge,
                     linewidth=0.85 if show_sd else 0.6,
-                    label="Measured",
+                    label="Medido",
                 ),
                 mpatches.Patch(
                     facecolor=STYLE["bar_bad"],
                     edgecolor=leg_bad_edge,
                     linewidth=0.85 if show_sd else 0.6,
-                    label="Missing / issue",
+                    label="Faltante / error",
                 ),
             ]
             ax.legend(
@@ -589,7 +589,7 @@ def plot_grouped_bars(
     )
 
     if n_cat == 0:
-        ax.text(0.5, 0.5, "No data", ha="center", va="center", transform=ax.transAxes)
+        ax.text(0.5, 0.5, "Sin datos", ha="center", va="center", transform=ax.transAxes)
         return fig
 
     ymax = 0.0
@@ -705,7 +705,7 @@ def plot_grouped_bars(
             facecolor=STYLE["bar_bad"],
             edgecolor=STYLE["bar_bad_edge"],
             linewidth=0.85 if show_sd else 0.6,
-            label="Missing / issue",
+            label="Faltante / error",
         )
     )
     ncol = 2 if k >= 4 else 1
@@ -979,10 +979,10 @@ Examples:
             level_path, algo, heur_list, ns.timeout, repeat
         )
         scenario = build_scenario_slug(True, ns.algorithms, ns.heuristic, ns.heuristics)
-        title_base = f"{level_path.name} — {algo.upper()} vs heuristics"
+        title_base = f"{level_path.name} — {algo.upper()} vs heurísticas"
         if repeat > 1:
             title_base = f"{title_base} (n = {repeat})"
-        xlabel = "Heuristic"
+        xlabel = "Heurística"
     else:
         algs = list(ns.algorithms) if ns.algorithms else list(ALGORITHMS.keys())
         for a in algs:
@@ -992,10 +992,10 @@ Examples:
             level_path, algs, ns.heuristic, ns.timeout, repeat
         )
         scenario = build_scenario_slug(False, ns.algorithms, ns.heuristic, None)
-        title_base = f"{level_path.name} — algorithms (fixed h={ns.heuristic})"
+        title_base = f"{level_path.name} — algoritmos (h fija={ns.heuristic})"
         if repeat > 1:
             title_base = f"{title_base} (n = {repeat})"
-        xlabel = "Algorithm"
+        xlabel = "Algoritmo"
 
     save_fmt = out.save_file.suffix[1:].lower() if out.save_file else "png"
     if out.save_file and out.save_file.suffix.lower() not in IMAGE_SUFFIXES:
@@ -1015,13 +1015,13 @@ Examples:
             )
             save_path = out.save_file.parent / auto_name
             save_figure(fig, save_path, save_fmt)
-            print(f"Wrote {save_path}")
+            print(f"Generado: {save_path}")
             plt.close(fig)
         elif out.batch_dir is not None:
             fname = default_grouped_basename(level_path.stem, scenario, metrics, "png")
             save_path = out.batch_dir / fname
             save_figure(fig, save_path, "png")
-            print(f"Wrote {save_path}")
+            print(f"Generado: {save_path}")
             plt.close(fig)
     else:
         for yaxis in metrics:
@@ -1041,7 +1041,7 @@ Examples:
                 plt.close(fig)
 
     if out.batch_dir is not None and not out.interactive and not ns.group_yaxis:
-        print(f"Wrote {len(metrics)} figure(s) to {out.batch_dir}")
+        print(f"Generadas {len(metrics)} figura(s) en {out.batch_dir}")
 
 
 if __name__ == "__main__":
