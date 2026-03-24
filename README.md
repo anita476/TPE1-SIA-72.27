@@ -19,6 +19,7 @@ python scripts/run_all_levels.py --algorithm astar --heuristic emm
 python scripts/compare_algorithms.py
 python scripts/compare_heuristics.py --heuristics emm mm manhattan
 python scripts/plot_level_metrics.py --level levels/level1.txt --out plots/
+python scripts/plot_level_metrics.py --all-levels --compare-algorithms-by-heuristic -o plots/microban_by_heuristic/
 python scripts/plot_directory_deadlock_metrics.py --levels-dir microban_levels --algorithm astar --heuristic deadlock --out plots/deadlocks_microban
 python scripts/utils/sokoban_to_png.py levels/level1.txt --output level1.png
 ```
@@ -71,39 +72,54 @@ python scripts/utils/sokoban_to_png.py levels/level1.txt --output level1.png
 | `--heuristics` | all     | Space-separated heuristic list  |
 | `--timeout`    | `60`    | Per-level timeout per heuristic |
 
-### `scripts/plot_level_metrics.py` — Bar charts for one Sokoban level
+### `scripts/plot_level_metrics.py` — Bar charts for one level or all Microban levels
 
-Generates metric charts by algorithm or by heuristic.
+Pick **exactly one** of `--level PATH` or `--all-levels`. With `--all-levels`, every `microban_levels/level*.txt` is processed; you **must** pass `--out` as a **directory** (non-interactive batch).
 
-| Argument           | Default              | Description                                                    |
-| ------------------ | -------------------- | -------------------------------------------------------------- |
-| `--level`          | required             | `.txt` level path                                              |
-| `--onlyheuristics` | off                  | X-axis = heuristics (requires `--algorithm astar` or `greedy`) |
-| `--algorithm`      | all / mode-dependent | Algorithms to compare, or one in heuristics mode               |
-| `--heuristic`      | `emm`                | Fixed heuristic in algorithm mode                              |
-| `--heuristics`     | all                  | Heuristic subset in `--onlyheuristics` mode                    |
-| `--yaxis`          | all                  | Metrics to plot                                                |
-| `--timeout`        | none                 | Per-run timeout                                                |
-| `--runs`           | `1`                  | Repeats per bar (`>1` uses mean ± sample std)                  |
-| `--group-yaxis`    | off                  | Grouped chart with 2+ metrics on the same Y scale              |
-| `-o` / `--out`     | —                    | Single file (1 metric) or directory (multiple auto-named PNGs) |
+**Modes** (do not combine the first two flags):
 
-### `scripts/plot_directory_deadlock_metrics.py` — Bar charts for every level in a directory
+- **Algorithm mode** (default): X-axis = algorithms. Optional `--algorithm` list; default = all algorithms. For `greedy` / `astar`, fix the heuristic with `--heuristic` (default `emm`). Do not use `--heuristics` in this mode.
+- **`--onlyheuristics`**: X-axis = heuristics; pass **exactly one** of `--algorithm greedy` or `--algorithm astar`. Optional `--heuristics` to subset heuristics (default = all).
+- **`--compare-algorithms-by-heuristic`**: X-axis = heuristics; grouped bars for `greedy` and/or `astar`. Default algorithms = both; optional `--algorithm greedy`, `--algorithm astar greedy`, etc.
 
-Runs `greedy` or `astar` with heuristic `deadlock` or `combination` on all `.txt` files in a folder and writes **five** figures: expanded nodes, frontier nodes, deadlock cell count, expanded/deadlock ratio, and frontier/(expanded+frontier).
+| Argument                             | Default        | Description |
+| ------------------------------------ | -------------- | ----------- |
+| `--level` *or* `--all-levels`        | (required)     | Single `.txt` path, or batch all `microban_levels/level*.txt` |
+| `--onlyheuristics`                   | off            | Heuristic comparison for one of `astar` / `greedy` |
+| `--compare-algorithms-by-heuristic`  | off            | `astar` vs `greedy` per heuristic |
+| `--algorithm`                        | mode-dependent | Space-separated list (`bfs`, `dfs`, …); constrained as above in heuristic modes |
+| `--heuristic`                        | `emm`          | Heuristic for `greedy`/`astar` in algorithm mode (same choices as project heuristics) |
+| `--heuristics`                       | all            | Only with `--onlyheuristics` or `--compare-algorithms-by-heuristic` |
+| `--yaxis`                            | all            | One or more of: `processing_time`, `heuristic_time`, `memory`, `frontier_nodes`, `expanded_nodes`, `cost`, `boxes_displaced`, `heuristic_time_ratio` |
+| `--group-yaxis`                      | off            | Single figure: all `--yaxis` metrics as grouped bars (needs **2+** explicit `--yaxis` values; same Y scale) |
+| `--timeout`                          | none           | Per-run time limit (seconds) |
+| `--runs`                             | `1`            | Repeat each bar’s search N times; if N>1, mean ± sample std |
+| `-o` / `--out`                       | interactive*   | Directory → auto-named files per metric (and per level if `--all-levels`). Single `.png`/`.pdf`/… only if **one** metric in `--yaxis`. Omitting `--out` is allowed only for a **single** level and **one** metric (or default all metrics forces `--out` dir). |
 
-| Argument       | Default    | Description                                              |
-| -------------- | ---------- | -------------------------------------------------------- |
-| `--levels-dir` | (required) | Directory of Sokoban `.txt` levels                       |
-| `--algorithm`  | (required) | `greedy` or `astar`                                      |
-| `--heuristic`  | `deadlock` | `deadlock` or `combination`                              |
-| `--timeout`    | none       | Per-level timeout (seconds)                              |
-| `-o` / `--out` | none       | Base path or directory; omit to show interactive windows |
+Examples:
+
+```bash
+python scripts/plot_level_metrics.py --level levels/level1.txt --yaxis expanded_nodes -o plots/expanded.png
+python scripts/plot_level_metrics.py --level levels/level1.txt --runs 5 --out plots/
+python scripts/plot_level_metrics.py --level levels/level1.txt --onlyheuristics --algorithm astar --out plots/
+python scripts/plot_level_metrics.py --all-levels --compare-algorithms-by-heuristic -o plots/microban_by_heuristic/
+```
+
+### `scripts/plot_directory_deadlock_metrics.py` — Deadlock-oriented metrics for every level in a directory
+
+| Argument       | Default    | Description |
+| -------------- | ---------- | ----------- |
+| `--levels-dir` | (required) | Folder of Sokoban `.txt` levels (path relative to repo root works) |
+| `--algorithm`  | (required) | `greedy` or `astar` |
+| `--heuristic`  | `deadlock` | `deadlock`, `combination`, or `emm` |
+| `--timeout`    | none       | Per-level timeout (seconds) |
+| `-o` / `--out` | none       | Omit → `matplotlib` interactive windows. If set: either an image path like `plots/base.png` → writes `plots/base__expanded_nodes.png`, `base__frontier_nodes.png`, … same extension; or a **directory** → creates it if needed and writes `directory_deadlock_metrics__*.png` inside that directory |
 
 Example:
 
 ```bash
 python scripts/plot_directory_deadlock_metrics.py --levels-dir microban_levels --algorithm astar --heuristic deadlock --out plots/deadlocks_microban
+python scripts/plot_directory_deadlock_metrics.py --levels-dir microban_levels --algorithm greedy --heuristic emm -o plots/greedy_emm.png
 ```
 
 ### `scripts/utils/sokoban_to_png.py` — Render a level to PNG
@@ -115,5 +131,3 @@ Requires **[Pillow](https://python-pillow.org/)** (`pip install pillow`). Render
 | `input`       | —                   | Optional `.txt` level path |
 | `--output`    | `sokoban_level.png` | Output PNG path            |
 | `--tile-size` | `48`                | Tile size in pixels        |
-
-If `input` is omitted, a built-in demo level is rendered.
