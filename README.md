@@ -14,7 +14,7 @@ pip install -r requirements.txt
 From the project root:
 
 ```bash
-python scripts/main.py --level levels/level1.txt --algorithm bfs
+python scripts/main.py --level levels/level1.txt --algorithm astar --heuristic deadlock
 python scripts/run_all_levels.py --algorithm astar --heuristic emm
 python scripts/compare_algorithms.py
 python scripts/compare_heuristics.py --heuristics emm mm manhattan
