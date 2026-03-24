@@ -88,15 +88,16 @@ STYLE = {
     "bar_ok_edge": "#2c6cb0",
     "bar_bad": "#b8c2cc",
     "bar_bad_edge": "#95a5a6",
-    "bar_edge_sd": "#000000",
-    "grid": "#e8ecf0",
-    "text_title": "#000000",
-    "text_axis": "#000000",
-    "text_muted": "#8b9bab",
+    "bar_edge_sd": "#343434",
+    "grid": "#e8dcd0",
+    "grid_minor": "#d4c8bc",
+    "text_title": "#343434",
+    "text_axis": "#343434",
+    "text_muted": "#6b6560",
     "err_bar": "#e67e22",
-    "err_bar_sd": "#000000",
+    "err_bar_sd": "#343434",
     "legend_frame": "#fff5ec",
-    "spine_sd": "#000000",
+    "spine_sd": "#343434",
 }
 
 PLOT_RC = {
@@ -108,8 +109,11 @@ PLOT_RC = {
     "ytick.labelsize": 9,
     "axes.spines.top": True,
     "axes.spines.right": True,
-    "axes.edgecolor": "#000000",
+    "axes.edgecolor": "#343434",
+    "axes.labelcolor": "#343434",
     "axes.linewidth": 0.8,
+    "xtick.color": "#343434",
+    "ytick.color": "#343434",
 }
 
 
@@ -434,7 +438,15 @@ def plot_bars(
 
         n = len(labels)
         if n == 0:
-            ax.text(0.5, 0.5, "Sin datos", ha="center", va="center", transform=ax.transAxes)
+            ax.text(
+                0.5,
+                0.5,
+                "Sin datos",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+                color=STYLE["text_axis"],
+            )
         else:
             x = range(n)
             bar_width = 0.72 if n <= 8 else max(0.35, 0.9 - 0.06 * n)
@@ -486,11 +498,12 @@ def plot_bars(
                 which="minor",
                 linestyle=":",
                 linewidth=0.4,
-                alpha=0.4,
-                color="#cccccc",
+                alpha=0.45,
+                color=STYLE["grid_minor"],
                 zorder=0,
             )
             ax.tick_params(axis="x", which="minor", bottom=False)
+            ax.tick_params(axis="both", colors=STYLE["text_axis"])
             ax.set_axisbelow(True)
 
             tops = [values[i] + (yerr_plot[i] if yerr_plot else 0) for i in range(n)]
@@ -518,13 +531,14 @@ def plot_bars(
                     ha="center",
                     va="bottom",
                     fontsize=7,
-                    color="#000000",
+                    color=STYLE["text_axis"],
                     zorder=6,
                     rotation=0,
                 )
 
             for spine in ax.spines.values():
                 spine.set_visible(True)
+                spine.set_color(STYLE["text_axis"])
 
             bottom_margin = 0.22 if rot else 0.14
             fig.subplots_adjust(left=0.09, right=0.76, top=0.88, bottom=bottom_margin)
@@ -589,7 +603,15 @@ def plot_grouped_series(
     )
 
     if n_cat == 0:
-        ax.text(0.5, 0.5, "Sin datos", ha="center", va="center", transform=ax.transAxes)
+        ax.text(
+            0.5,
+            0.5,
+            "Sin datos",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            color=STYLE["text_axis"],
+        )
         return fig
 
     ymax = 0.0
@@ -663,7 +685,7 @@ def plot_grouped_series(
                 ha="center",
                 va="bottom",
                 fontsize=7,
-                color="#000000",
+                color=STYLE["text_axis"],
                 zorder=6,
                 rotation=0,
             )
@@ -693,11 +715,12 @@ def plot_grouped_series(
         which="minor",
         linestyle=":",
         linewidth=0.4,
-        alpha=0.4,
-        color="#cccccc",
+        alpha=0.45,
+        color=STYLE["grid_minor"],
         zorder=0,
     )
     ax.tick_params(axis="x", which="minor", bottom=False)
+    ax.tick_params(axis="both", colors=STYLE["text_axis"])
     ax.set_axisbelow(True)
     if max_label_y > 0:
         ax.set_ylim(top=max(ax.get_ylim()[1], max_label_y + off * 2.0))
@@ -724,10 +747,12 @@ def plot_grouped_series(
         framealpha=0.98,
         fontsize=8,
         ncol=ncol,
+        labelcolor=STYLE["text_axis"],
     )
 
     for spine in ax.spines.values():
         spine.set_visible(True)
+        spine.set_color(STYLE["text_axis"])
 
     bottom_margin = 0.22 if rot else 0.14
     right_margin = 0.72 if k >= 4 else 0.76
