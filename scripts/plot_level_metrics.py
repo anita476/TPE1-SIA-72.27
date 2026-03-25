@@ -7,6 +7,7 @@ Requires: pip install matplotlib
 from __future__ import annotations
 
 import argparse
+import csv
 import re
 import sys
 from dataclasses import dataclass
@@ -42,6 +43,10 @@ YAXIS_CHOICES = (
 )
 
 HEURISTIC_ONLY_ALGORITHMS = frozenset({"astar", "greedy"})
+HEURISTIC_ONLY_ALGORITHMS_ORDERED = ("astar", "greedy")
+
+# Default heuristics used to expand greedy/astar in --boxplot-all-levels mode.
+BOXPLOT_DEFAULT_HEURISTICS = ("manhattan", "manhattan_greedy", "push_distance", "emm")
 VARIABLE_METRICS = frozenset({"processing_time", "heuristic_time", "heuristic_time_ratio"})
 INTEGER_YAXIS_METRICS = frozenset(
     {"expanded_nodes", "frontier_nodes", "cost", "boxes_displaced"}
@@ -818,7 +823,7 @@ def build_scenario_slug(
         raw = raw[:180] if len(raw) > 180 else raw
         return _safe_filename_part(raw)
     if mode == "compare_algorithms_by_heuristic":
-        alg_tag = "_vs_".join(algorithms or list(HEURISTIC_ONLY_ALGORITHMS))
+        alg_tag = "_vs_".join(algorithms or list(HEURISTIC_ONLY_ALGORITHMS_ORDERED))
         raw = f"{alg_tag}_vs_{build_heuristics_tag(heuristics_list)}"
         raw = raw[:180] if len(raw) > 180 else raw
         return _safe_filename_part(raw)
@@ -850,6 +855,8 @@ def default_grouped_basename(
 
 
 def validate_cli(ns: argparse.Namespace) -> None:
+    if ns.boxplot_all_levels:
+        return
     if ns.onlyheuristics and ns.compare_algorithms_by_heuristic:
         raise SystemExit(
             "Choose only one of --onlyheuristics or --compare-algorithms-by-heuristic."
@@ -866,7 +873,7 @@ def validate_cli(ns: argparse.Namespace) -> None:
                 f"With --onlyheuristics, --algorithm must be astar or greedy (got: {algs[0]})."
             )
     elif ns.compare_algorithms_by_heuristic:
-        algs = list(ns.algorithms) if ns.algorithms else list(HEURISTIC_ONLY_ALGORITHMS)
+        algs = list(ns.algorithms) if ns.algorithms else list(HEURISTIC_ONLY_ALGORITHMS_ORDERED)
         if not algs:
             raise SystemExit(
                 "With --compare-algorithms-by-heuristic, --algorithm must include at least one of: greedy, astar."
@@ -961,9 +968,255 @@ def resolve_output(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     return OutputPlan(interactive=False, save_file=out_path)
 
+# Box-plot: compare all algorithms across all levels
+BOXPLOT_STYLE = {
+    "box_face": "#4a90d9",
+    "box_edge": "#2c6cb0",
+    "median_color": "#c0392b",
+    "whisker_color": "#343434",
+    "cap_color": "#343434",
+    "flier_color": "#95a5a6",
+    "point_color": "#e67e22",
+    "point_edge": "#c45f1a",
+}
+
+
+def _boxplot_algo_label(algo: str, heuristic: str | None) -> str:
+    """Pretty label for boxplot x-tick: 'BFS', 'A* (emm)', etc."""
+    base = algorithm_legend_label(algo)
+    if heuristic is not None:
+        h_display = HEURISTIC_LABEL_DISPLAY.get(heuristic, heuristic)
+        return f"{base} ({h_display})"
+    return base
+
+
+def _build_boxplot_configs(
+    boxplot_heuristics: list[str],
+) -> list[tuple[str, str | None]]:
+    """Return (algorithm, heuristic_or_None) pairs for the boxplot x-axis."""
+    non_heuristic = [a for a in ALGORITHMS if a not in HEURISTIC_ONLY_ALGORITHMS]
+    configs: list[tuple[str, str | None]] = [(a, None) for a in non_heuristic]
+    for algo in HEURISTIC_ONLY_ALGORITHMS_ORDERED:
+        for h in boxplot_heuristics:
+            configs.append((algo, h))
+    return configs
+
+
+def collect_boxplot_data(
+    level_paths: list[Path],
+    configs: list[tuple[str, str | None]],
+    timeout: int | None,
+    repeat: int,
+) -> tuple[dict[str, list[list[float]]], list[dict]]:
+    """
+    Returns:
+      - {metric: [ [values_for_config_0], [values_for_config_1], ... ]}
+        Each inner list has one aggregated value per (level, run) pair.
+      - A list of detail dicts (one per run) for CSV export.
+    """
+    all_metrics = list(YAXIS_CHOICES)
+    data: dict[str, list[list[float]]] = {m: [[] for _ in configs] for m in all_metrics}
+    csv_rows: list[dict] = []
+
+    total = len(level_paths) * len(configs) * repeat
+    done = 0
+
+    for level_path in level_paths:
+        for ci, (algo, heur) in enumerate(configs):
+            heur_name = heur or "emm"
+            for run_idx in range(repeat):
+                _, result, err = run_level(
+                    level_path, algo, timeout, verbose=False, heuristic_name=heur_name
+                )
+                done += 1
+                pct = done * 100 // total
+                print(
+                    f"\r  [{pct:3d}%] {level_path.name} | {algo}"
+                    + (f" ({heur})" if heur else "")
+                    + f" run {run_idx + 1}/{repeat}   ",
+                    end="",
+                    flush=True,
+                )
+
+                status = row_status(result, err)
+                row: dict = {
+                    "level": level_path.name,
+                    "algorithm": algo,
+                    "heuristic": heur or "-",
+                    "run": run_idx + 1,
+                    "status": status,
+                }
+                for m in all_metrics:
+                    v = metric_value(result, m)
+                    row[m] = v
+                    if v is not None:
+                        data[m][ci].append(float(v))
+                csv_rows.append(row)
+    print()
+    return data, csv_rows
+
+
+def write_boxplot_csv(csv_rows: list[dict], path: Path) -> None:
+    """Write detailed per-run results to a CSV file."""
+    all_metrics = list(YAXIS_CHOICES)
+    fieldnames = ["level", "algorithm", "heuristic", "run", "status"] + all_metrics
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in csv_rows:
+            writer.writerow(row)
+
+
+def plot_boxplot(
+    data_per_config: list[list[float]],
+    labels: list[str],
+    title: str,
+    ylabel: str,
+    metric: str,
+) -> plt.Figure:
+    """Box-plot with individual data points overlaid."""
+    n = len(labels)
+    fig_w = max(11.0, 0.9 * n + 3.0)
+    fig_h = FIG_SIZE[1]
+
+    with plt.rc_context(PLOT_RC):
+        fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=FIG_DPI)
+    fig.patch.set_facecolor(STYLE["figure_bg"])
+    ax.set_facecolor(STYLE["axes_bg"])
+
+    if n == 0 or all(len(d) == 0 for d in data_per_config):
+        ax.text(0.5, 0.5, "Sin datos", ha="center", va="center",
+                transform=ax.transAxes, color=STYLE["text_axis"])
+        ax.set_title(title, fontsize=13, fontweight="600",
+                     color=STYLE["text_title"], pad=14)
+        fig.subplots_adjust(left=0.09, right=0.9, top=0.88, bottom=0.14)
+        return fig
+
+    positions = list(range(1, n + 1))
+    bp = ax.boxplot(
+        data_per_config,
+        positions=positions,
+        widths=0.5,
+        patch_artist=True,
+        showfliers=False,
+        zorder=2,
+    )
+
+    for box in bp["boxes"]:
+        box.set_facecolor(BOXPLOT_STYLE["box_face"])
+        box.set_edgecolor(BOXPLOT_STYLE["box_edge"])
+        box.set_alpha(0.7)
+    for median in bp["medians"]:
+        median.set_color(BOXPLOT_STYLE["median_color"])
+        median.set_linewidth(1.8)
+    for whisker in bp["whiskers"]:
+        whisker.set_color(BOXPLOT_STYLE["whisker_color"])
+        whisker.set_linewidth(0.8)
+    for cap in bp["caps"]:
+        cap.set_color(BOXPLOT_STYLE["cap_color"])
+        cap.set_linewidth(0.8)
+
+    rng = np.random.default_rng(42)
+    for i, vals in enumerate(data_per_config):
+        if not vals:
+            continue
+        jitter = rng.uniform(-0.15, 0.15, size=len(vals))
+        ax.scatter(
+            np.full(len(vals), positions[i]) + jitter,
+            vals,
+            s=18,
+            color=BOXPLOT_STYLE["point_color"],
+            edgecolors=BOXPLOT_STYLE["point_edge"],
+            linewidths=0.4,
+            alpha=0.75,
+            zorder=3,
+        )
+
+    ax.set_xticks(positions)
+    ax.set_xticklabels(labels, rotation=35, ha="right")
+    ax.set_ylabel(ylabel, color=STYLE["text_axis"])
+
+    if metric in INTEGER_YAXIS_METRICS:
+        ax.yaxis.set_major_locator(MaxNLocator(nbins="auto", integer=True))
+        ax.yaxis.set_major_formatter(StrMethodFormatter("{x:.0f}"))
+    else:
+        ax.yaxis.set_major_locator(MaxNLocator(nbins="auto", integer=False))
+        ax.yaxis.set_major_formatter(StrMethodFormatter("{x:.6g}"))
+
+    ax.grid(axis="y", which="major", linestyle="-", linewidth=0.6,
+            alpha=0.55, color=STYLE["grid"], zorder=0)
+    ax.minorticks_on()
+    ax.grid(axis="y", which="minor", linestyle=":", linewidth=0.4,
+            alpha=0.45, color=STYLE["grid_minor"], zorder=0)
+    ax.tick_params(axis="x", which="minor", bottom=False)
+    ax.tick_params(axis="both", colors=STYLE["text_axis"])
+    ax.set_axisbelow(True)
+
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_color(STYLE["text_axis"])
+
+    ax.set_title(title, fontsize=13, fontweight="600",
+                 color=STYLE["text_title"], pad=14)
+    fig.subplots_adjust(left=0.09, right=0.93, top=0.88, bottom=0.22)
+
+    return fig
+
+
+def render_boxplot_all_levels(
+    level_paths: list[Path],
+    boxplot_heuristics: list[str],
+    metrics: list[str],
+    repeat: int,
+    timeout: int | None,
+    out: OutputPlan,
+    save_fmt: str,
+) -> list[Path]:
+    configs = _build_boxplot_configs(boxplot_heuristics)
+    labels = [_boxplot_algo_label(algo, h) for algo, h in configs]
+
+    print(f"Boxplot: {len(level_paths)} niveles × {len(configs)} configs × {repeat} run(s)")
+    data, csv_rows = collect_boxplot_data(level_paths, configs, timeout, repeat)
+
+    # Save CSV with detailed per-run results
+    if out.batch_dir is not None:
+        csv_path = out.batch_dir / "boxplot_all_algorithms_results.csv"
+        write_boxplot_csv(csv_rows, csv_path)
+        print(f"CSV guardado: {csv_path}")
+    elif out.save_file is not None:
+        csv_path = out.save_file.parent / "boxplot_all_algorithms_results.csv"
+        write_boxplot_csv(csv_rows, csv_path)
+        print(f"CSV guardado: {csv_path}")
+
+    written_paths: list[Path] = []
+    scenario = "boxplot_all_algorithms"
+
+    for metric_name in metrics:
+        metric_data = data[metric_name]
+        ylabel = yaxis_label(metric_name)
+        if repeat > 1 and metric_name in VARIABLE_METRICS:
+            ylabel = f"{ylabel} (cada run)"
+        title = f"Comparación de algoritmos - {yaxis_label(metric_name)} (todos los niveles, n={repeat})"
+
+        fig = plot_boxplot(metric_data, labels, title, ylabel, metric_name)
+
+        save_path = emit_figure(
+            fig, out, "all_levels", scenario, save_fmt,
+            grouped=False, metrics=[metric_name], metric=metric_name,
+        )
+        if save_path is not None:
+            written_paths.append(save_path)
+
+    return written_paths
+
 
 def save_figure(fig: plt.Figure, path: Path, fmt: str | None = None) -> None:
-    kw: dict = {"dpi": FIG_DPI, "bbox_inches": "tight", "pad_inches": SAVE_PAD_INCHES}
+    kw: dict = {
+        "dpi": FIG_DPI,
+        "bbox_inches": "tight",
+        "pad_inches": SAVE_PAD_INCHES,
+        "facecolor": fig.get_facecolor(),
+    }
     if fmt:
         kw["format"] = "jpeg" if fmt == "jpg" else fmt
     fig.savefig(path, **kw)
@@ -1182,6 +1435,8 @@ Examples:
   %(prog)s --level levels/level1.txt --onlyheuristics --algorithm astar \\
       --group-yaxis --yaxis processing_time heuristic_time -o plots/
   %(prog)s --all-levels --compare-algorithms-by-heuristic -o plots/
+  %(prog)s --boxplot-all-levels --runs 3 -o plots/
+  %(prog)s --boxplot-all-levels --runs 3 --boxplot-heuristics manhattan emm -o plots/
 """,
     )
     level_group = parser.add_mutually_exclusive_group(required=True)
@@ -1195,6 +1450,12 @@ Examples:
         "--all-levels",
         action="store_true",
         help="Process every level*.txt under microban_levels/ (requires --out DIR)",
+    )
+    level_group.add_argument(
+        "--boxplot-all-levels",
+        action="store_true",
+        help="Box-plot comparing all algorithms across all microban levels. "
+        "For greedy/astar expands into variants per heuristic (see --boxplot-heuristics).",
     )
     parser.add_argument(
         "--onlyheuristics",
@@ -1230,6 +1491,15 @@ Examples:
         choices=sorted(HEURISTICS.keys()),
         help="Heuristics to compare with --onlyheuristics or --compare-algorithms-by-heuristic "
         "(default: all)",
+    )
+    parser.add_argument(
+        "--boxplot-heuristics",
+        nargs="+",
+        default=None,
+        metavar="H",
+        choices=sorted(HEURISTICS.keys()),
+        help="Heuristics for greedy/astar in --boxplot-all-levels mode "
+        "(default: manhattan manhattan_greedy push_distance emm)",
     )
     parser.add_argument(
         "--yaxis",
@@ -1275,20 +1545,48 @@ Examples:
 
     root = Path(__file__).resolve().parent.parent
     validate_cli(ns)
+
+    use_all = ns.all_levels or ns.boxplot_all_levels
+    level_paths = resolve_level_paths(root, ns.level, use_all)
+    metrics = resolve_metrics(ns.yaxis)
+    repeat = ns.runs
+
+    if ns.boxplot_all_levels:
+        multi = len(metrics) > 1
+        out = resolve_output(ns.out, multi, True)
+        if not out.interactive:
+            plt.ioff()
+        save_fmt = out.save_file.suffix[1:].lower() if out.save_file else "png"
+        if out.save_file and out.save_file.suffix.lower() not in IMAGE_SUFFIXES:
+            raise SystemExit(
+                f"Unsupported image type {out.save_file.suffix!r}; use one of {sorted(IMAGE_SUFFIXES)}"
+            )
+        bp_heuristics = (
+            list(ns.boxplot_heuristics)
+            if ns.boxplot_heuristics is not None
+            else list(BOXPLOT_DEFAULT_HEURISTICS)
+        )
+        written_paths = render_boxplot_all_levels(
+            level_paths, bp_heuristics, metrics, repeat, ns.timeout, out, save_fmt,
+        )
+        if out.save_file is not None and written_paths:
+            print(f"Generado: {written_paths[0]}")
+        elif out.batch_dir is not None and not out.interactive:
+            print(f"Generadas {len(written_paths)} figura(s) en {out.batch_dir}")
+        return
+
+    # ---- existing modes ----
     if ns.group_yaxis and (not ns.yaxis or len(ns.yaxis) < 2):
         raise SystemExit(
             "--group-yaxis requires explicit --yaxis with at least two metrics "
             "(e.g. --yaxis processing_time heuristic_time)."
         )
-    level_paths = resolve_level_paths(root, ns.level, ns.all_levels)
-    metrics = resolve_metrics(ns.yaxis)
     multi = len(metrics) > 1 and not ns.group_yaxis
     out = resolve_output(ns.out, multi, len(level_paths) > 1)
 
     if not out.interactive:
         plt.ioff()
 
-    repeat = ns.runs
     heur_list = list(ns.heuristics) if ns.heuristics is not None else None
 
     if ns.onlyheuristics:
@@ -1299,7 +1597,7 @@ Examples:
         algorithms = (
             list(ns.algorithms)
             if ns.algorithms
-            else list(HEURISTIC_ONLY_ALGORITHMS)
+            else list(HEURISTIC_ONLY_ALGORITHMS_ORDERED)
         )
     else:
         mode = "algorithm"
