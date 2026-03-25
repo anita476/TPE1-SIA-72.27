@@ -34,6 +34,8 @@ python scripts/plot_level_metrics.py --level levels/level1.txt --out plots/
 
 python scripts/plot_level_metrics.py --all-levels --compare-algorithms-by-heuristic -o plots/microban_by_heuristic/
 
+python scripts/plot_level_metrics.py --boxplot-all-levels --runs 3 -o plots/
+
 python scripts/plot_directory_deadlock_metrics.py --levels-dir microban_levels --algorithm astar --heuristic deadlock --out plots/deadlocks_microban
 
 python scripts/utils/sokoban_to_png.py levels/level1.txt --output level1.png
@@ -89,9 +91,11 @@ python scripts/utils/sokoban_to_png.py levels/level1.txt --output level1.png
 
 ### `scripts/plot_level_metrics.py` — Bar charts for one level or all Microban levels
 
-Pick **exactly one** of `--level PATH` or `--all-levels`. With `--all-levels`, every `microban_levels/level*.txt` is processed; you **must** pass `--out` as a **directory** (non-interactive batch).
+Pick **exactly one** of:
 
-**Modes** (do not combine the first two flags):
+- `--level PATH` — one level file.
+- `--all-levels` — every `microban_levels/level*.txt` (bar charts per level / per metric).
+- `--boxplot-all-levels` — every `microban_levels/level*.txt` in **boxplot** mode (one distribution per algorithm — and per heuristic for `greedy` / `astar` — aggregated across levels).
 
 - **Algorithm mode** (default): X-axis = algorithms. Optional `--algorithm` list; default = all algorithms. For `greedy` / `astar`, fix the heuristic with `--heuristic` (default `emm`). Do not use `--heuristics` in this mode.
 - **`--onlyheuristics`**: X-axis = heuristics; pass **exactly one** of `--algorithm greedy` or `--algorithm astar`. Optional `--heuristics` to subset heuristics (default = all).
@@ -99,17 +103,18 @@ Pick **exactly one** of `--level PATH` or `--all-levels`. With `--all-levels`, e
 
 | Argument                             | Default        | Description |
 | ------------------------------------ | -------------- | ----------- |
-| `--level` *or* `--all-levels`        | (required)     | Single `.txt` path, or batch all `microban_levels/level*.txt` |
-| `--onlyheuristics`                   | off            | Heuristic comparison for one of `astar` / `greedy` |
-| `--compare-algorithms-by-heuristic`  | off            | `astar` vs `greedy` per heuristic |
-| `--algorithm`                        | mode-dependent | Space-separated list (`bfs`, `dfs`, …); constrained as above in heuristic modes |
-| `--heuristic`                        | `emm`          | Heuristic for `greedy`/`astar` in algorithm mode (same choices as project heuristics) |
+| `--level` *or* `--all-levels` *or* `--boxplot-all-levels` | (required, pick one) | Single `.txt`, batch bar charts on all Microban levels, or batch boxplots on all Microban levels |
+| `--onlyheuristics`                   | off            | Heuristic comparison for one of `astar` / `greedy` (bar charts only) |
+| `--compare-algorithms-by-heuristic`  | off            | `astar` vs `greedy` per heuristic (bar charts only) |
+| `--algorithm`                        | mode-dependent | Space-separated list (`bfs`, `dfs`, …); constrained as above in heuristic bar modes |
+| `--heuristic`                        | `emm`          | Heuristic for `greedy`/`astar` in algorithm bar mode (same choices as project heuristics) |
 | `--heuristics`                       | all            | Only with `--onlyheuristics` or `--compare-algorithms-by-heuristic` |
+| `--boxplot-heuristics`               | `manhattan` `manhattan_greedy` `push_distance` `emm` | Heuristics that expand `greedy` and `astar` into separate boxplot columns; **only** with `--boxplot-all-levels` |
 | `--yaxis`                            | all            | One or more of: `processing_time`, `heuristic_time`, `memory`, `frontier_nodes`, `expanded_nodes`, `cost`, `boxes_displaced`, `heuristic_time_ratio` |
-| `--group-yaxis`                      | off            | Single figure: all `--yaxis` metrics as grouped bars (needs **2+** explicit `--yaxis` values; same Y scale) |
+| `--group-yaxis`                      | off            | Single figure: all `--yaxis` metrics as grouped bars (needs **2+** explicit `--yaxis` values; same Y scale; bar charts only) |
 | `--timeout`                          | none           | Per-run time limit (seconds) |
-| `--runs`                             | `1`            | Repeat each bar’s search N times; if N>1, mean ± sample std |
-| `-o` / `--out`                       | interactive*   | Directory → auto-named files per metric (and per level if `--all-levels`). Single `.png`/`.pdf`/… only if **one** metric in `--yaxis`. Omitting `--out` is allowed only for a **single** level and **one** metric (or default all metrics forces `--out` dir). |
+| `--runs`                             | `1`            | Repeat each search N times per bar/box; if N>1, mean ± sample std (bars) or boxplot spread |
+| `-o` / `--out`                       | interactive*   | Directory → auto-named files per metric (and per level if `--all-levels`). With `--boxplot-all-levels`, **directory required**. Single `.png`/`.pdf`/… only if **one** metric in `--yaxis` (single-level bar mode). Omitting `--out` is allowed only for a **single** level and **one** metric (or default all metrics forces `--out` dir). |
 
 Examples:
 
@@ -121,6 +126,10 @@ python scripts/plot_level_metrics.py --level levels/level1.txt --runs 5 --out pl
 python scripts/plot_level_metrics.py --level levels/level1.txt --onlyheuristics --algorithm astar --out plots/
 
 python scripts/plot_level_metrics.py --all-levels --compare-algorithms-by-heuristic -o plots/microban_by_heuristic/
+
+python scripts/plot_level_metrics.py --boxplot-all-levels --runs 3 -o plots/
+
+python scripts/plot_level_metrics.py --boxplot-all-levels --runs 3 --boxplot-heuristics manhattan emm -o plots/
 ```
 
 ### `scripts/plot_directory_deadlock_metrics.py` — Deadlock-oriented metrics for every level in a directory
