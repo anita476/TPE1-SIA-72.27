@@ -5,9 +5,17 @@
 - Python 3.10+
 - Dependencies:
 
-```bash
+```sh
 pip install -r requirements.txt
 ```
+## Optional: Virtual Environment
+
+To use `pipenv` and use virtual environment to run the project run:
+```sh
+pipenv install
+```
+And preface all commands with `pipenv run [command] [args..]`
+
 
 ## Quick Start
 
@@ -15,12 +23,19 @@ From the project root:
 
 ```bash
 python scripts/main.py --level levels/level1.txt --algorithm astar --heuristic deadlock
+
 python scripts/run_all_levels.py --algorithm astar --heuristic emm
+
 python scripts/compare_algorithms.py
+
 python scripts/compare_heuristics.py --heuristics emm mm manhattan
+
 python scripts/plot_level_metrics.py --level levels/level1.txt --out plots/
+
 python scripts/plot_level_metrics.py --all-levels --compare-algorithms-by-heuristic -o plots/microban_by_heuristic/
+
 python scripts/plot_directory_deadlock_metrics.py --levels-dir microban_levels --algorithm astar --heuristic deadlock --out plots/deadlocks_microban
+
 python scripts/utils/sokoban_to_png.py levels/level1.txt --output level1.png
 ```
 
@@ -98,10 +113,13 @@ Pick **exactly one** of `--level PATH` or `--all-levels`. With `--all-levels`, e
 
 Examples:
 
-```bash
+```sh
 python scripts/plot_level_metrics.py --level levels/level1.txt --yaxis expanded_nodes -o plots/expanded.png
+
 python scripts/plot_level_metrics.py --level levels/level1.txt --runs 5 --out plots/
+
 python scripts/plot_level_metrics.py --level levels/level1.txt --onlyheuristics --algorithm astar --out plots/
+
 python scripts/plot_level_metrics.py --all-levels --compare-algorithms-by-heuristic -o plots/microban_by_heuristic/
 ```
 
@@ -119,7 +137,9 @@ Example:
 
 ```bash
 python scripts/plot_directory_deadlock_metrics.py --levels-dir microban_levels --algorithm astar --heuristic deadlock --out plots/deadlocks_microban
+
 python scripts/plot_directory_deadlock_metrics.py --levels-dir microban_levels --algorithm greedy --heuristic emm -o plots/greedy_emm.png
+
 ```
 
 ### `scripts/utils/sokoban_to_png.py` — Render a level to PNG

@@ -5,6 +5,7 @@ name = "pypi"
 
 [packages]
 matplotlib = ">=3.7"
+pillow = "*"
 
 [dev-packages]
 
