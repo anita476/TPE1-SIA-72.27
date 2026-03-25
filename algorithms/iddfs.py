@@ -4,6 +4,9 @@ from utils.state import SokobanState, get_successors
 from algorithms.utils import SearchNode, SearchResult, get_peak_memory_kb
 
 
+DEFAULT_MAX_IDDFS_ITERATIONS = 100_000
+
+
 def depth_limited_search(
     node: SearchNode,
     depth_limit: int,
@@ -34,13 +37,17 @@ def depth_limited_search(
     return None, expanded
 
 
-def iddfs(initial_state: SokobanState) -> SearchResult:
+def iddfs(
+    initial_state: SokobanState,
+    *,
+    max_iterations: int = DEFAULT_MAX_IDDFS_ITERATIONS,
+) -> SearchResult:
     start_time = time.time()
     tracemalloc.start()
     total_expanded = 0
     depth = 0
 
-    while True:
+    while depth < max_iterations:
         result, expanded = depth_limited_search(
             SearchNode(initial_state),
             depth_limit=depth,
@@ -64,3 +71,16 @@ def iddfs(initial_state: SokobanState) -> SearchResult:
             )
 
         depth += 1
+
+    elapsed = time.time() - start_time
+    memory_kb = get_peak_memory_kb()
+    tracemalloc.stop()
+    return SearchResult(
+        success=False,
+        path=[],
+        cost=0,
+        expanded_nodes=total_expanded,
+        frontier_nodes=0,
+        processing_time=elapsed,
+        memory_kb=memory_kb,
+    )
