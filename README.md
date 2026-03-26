@@ -160,3 +160,6 @@ Requires **[Pillow](https://python-pillow.org/)** (`pip install pillow`). Render
 | `input`       | —                   | Optional `.txt` level path |
 | `--output`    | `sokoban_level.png` | Output PNG path            |
 | `--tile-size` | `48`                | Tile size in pixels        |
+
+## Presentation
+The presentation can be found inside the `docs/` folder.
