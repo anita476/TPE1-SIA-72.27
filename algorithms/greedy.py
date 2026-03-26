@@ -9,16 +9,14 @@ from algorithms.heuristics.combination import combination_heuristic
 from algorithms.heuristics.emm import emm_heuristic
 
 
-# todo is greedy optimal?
 def greedy(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult:
     start_time = time.time()
     tracemalloc.start()
     heuristic_time_total = 0.0
 
-
     root = SearchNode(initial_state)
     frontier = [] # using a priority queue to select the less costly option
-    counter = 0  # tie breaker # todo is this the FO in the paper ?
+    counter = 0
     h_start = time.perf_counter()
     root_h = heuristic(initial_state)
     heuristic_time_total += time.perf_counter() - h_start
