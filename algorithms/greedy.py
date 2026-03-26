@@ -51,7 +51,6 @@ def greedy(initial_state: SokobanState, heuristic=emm_heuristic) -> SearchResult
 
         for direction, new_state in get_successors(node.state):
             if new_state not in explored:
-                # checkeo estados repetidos
                 child = SearchNode(new_state, parent=node, action=direction, cost=node.cost + 1)
                 counter += 1
                 h_start = time.perf_counter()
